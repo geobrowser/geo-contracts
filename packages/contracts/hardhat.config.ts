@@ -16,10 +16,6 @@ import 'solidity-coverage';
 const dotenvConfigPath: string = process.env.DOTENV_CONFIG_PATH || '../../.env';
 dotenvConfig({path: resolve(__dirname, dotenvConfigPath)});
 
-if (!process.env.INFURA_API_KEY) {
-  throw new Error('INFURA_API_KEY in .env not set');
-}
-
 const apiUrls: NetworkNameMapping = {
   mainnet: 'https://mainnet.infura.io/v3/',
   goerli: 'https://goerli.infura.io/v3/',
@@ -34,36 +30,20 @@ export const networks: {[index: string]: NetworkUserConfig} = {
     forking: {
       url: `${
         apiUrls[process.env.NETWORK_NAME ? process.env.NETWORK_NAME : 'mainnet']
-      }${process.env.INFURA_API_KEY}`,
+      }${process.env.ALCHEMY_API_KEY}`,
     },
-  },
-  mainnet: {
-    chainId: 1,
-    url: `${apiUrls.mainnet}${process.env.INFURA_API_KEY}`,
-  },
-  goerli: {
-    chainId: 5,
-    url: `${apiUrls.goerli}${process.env.INFURA_API_KEY}`,
   },
   polygon: {
     chainId: 137,
-    url: `${apiUrls.polygon}${process.env.INFURA_API_KEY}`,
-  },
-  polygonMumbai: {
-    chainId: 80001,
-    url: `${apiUrls.polygonMumbai}${process.env.INFURA_API_KEY}`,
-  },
-  baseGoerli: {
-    chainId: 84531,
-    url: `${apiUrls.baseGoerli}`,
-    gasPrice: 20000000000,
+    url: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
   },
 };
 
 // Uses hardhats private key if none is set. DON'T USE THIS ACCOUNT FOR DEPLOYMENTS
 const accounts = process.env.PRIVATE_KEY
   ? process.env.PRIVATE_KEY.split(',')
-  : ['0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'];
+  : // Test PK
+    ['0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'];
 
 for (const network in networks) {
   // special treatement for hardhat
@@ -82,14 +62,10 @@ extendEnvironment((hre: HardhatRuntimeEnvironment) => {
 });
 
 const config: HardhatUserConfig = {
-  defaultNetwork: 'hardhat',
+  defaultNetwork: 'polygon',
   etherscan: {
     apiKey: {
-      mainnet: process.env.ETHERSCAN_API_KEY || '',
-      goerli: process.env.ETHERSCAN_API_KEY || '',
       polygon: process.env.POLYGONSCAN_API_KEY || '',
-      polygonMumbai: process.env.POLYGONSCAN_API_KEY || '',
-      baseGoerli: process.env.BASESCAN_API_KEY || '',
     },
     customChains: [
       {

@@ -13,12 +13,19 @@ import {OnlyPluginUpgraderCondition} from "../conditions/OnlyPluginUpgraderCondi
 import {MainVotingPlugin} from "./MainVotingPlugin.sol";
 import {MajorityVotingBase} from "./base/MajorityVotingBase.sol";
 
+
 /// @title GovernancePluginsSetup
 /// @dev Release 1, Build 1
 contract GovernancePluginsSetup is PluginSetup {
     address private immutable mainVotingPluginImplementation;
     address public immutable memberAccessPluginImplementation;
     address private immutable pluginSetupProcessor;
+
+    event GeoGovernancePluginsCreated(
+        address dao,
+        address mainVotingPlugin,
+        address memberAccessPlugin
+    );
 
     /// @notice Thrown when the array of helpers does not have the correct size
     error InvalidHelpers(uint256 actualLength);
@@ -146,6 +153,8 @@ contract GovernancePluginsSetup is PluginSetup {
         preparedSetupData.permissions = permissions;
         preparedSetupData.helpers = new address[](1);
         preparedSetupData.helpers[0] = _memberAccessPlugin;
+
+        emit GeoGovernancePluginsCreated(_dao, mainVotingPlugin, _memberAccessPlugin);
     }
 
     /// @inheritdoc IPluginSetup
