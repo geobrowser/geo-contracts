@@ -17,6 +17,8 @@ contract SpacePluginSetup is PluginSetup {
     address private immutable pluginImplementation;
     address private immutable pluginSetupProcessor;
 
+    event GeoSpacePluginCreated(address dao, address plugin);
+
     /// @notice Initializes the setup contract
     /// @param pluginSetupProcessorAddress The address of the PluginSetupProcessor contract deployed by Aragon on that chain
     constructor(PluginSetupProcessor pluginSetupProcessorAddress) {
@@ -88,6 +90,8 @@ contract SpacePluginSetup is PluginSetup {
         }
 
         preparedSetupData.permissions = permissions;
+
+        emit GeoSpacePluginCreated(_dao, plugin);
     }
 
     /// @inheritdoc IPluginSetup
