@@ -17,6 +17,8 @@ yarn build
 yarn test
 ```
 
+See the [deployment checklist](./README_DEPLOYMENT.md)
+
 ## Overview
 
 A Space is composed by a DAO and several plugins installed on it. The [DAO](https://github.com/aragon/osx/blob/develop/packages/contracts/src/core/dao/DAO.sol) contract holds all the assets and rights to act on external components, while plugins are custom, composable, opt-in pieces of logic that can perform certain actions governed by the DAO's permission database.

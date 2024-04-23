@@ -18,10 +18,11 @@ dotenvConfig({path: resolve(__dirname, dotenvConfigPath)});
 
 const apiUrls: NetworkNameMapping = {
   mainnet: 'https://mainnet.infura.io/v3/',
-  goerli: 'https://goerli.infura.io/v3/',
+  sepolia: 'https://sepolia.infura.io/v3/',
   polygon: 'https://polygon-mainnet.infura.io/v3/',
   polygonMumbai: 'https://polygon-mumbai.infura.io/v3/',
   baseGoerli: 'https://goerli.base.org',
+  custom: process.env.DEPLOYMENT_RPC_ENDPOINT ?? '',
 };
 
 export const networks: {[index: string]: NetworkUserConfig} = {
@@ -33,9 +34,22 @@ export const networks: {[index: string]: NetworkUserConfig} = {
       }${process.env.ALCHEMY_API_KEY}`,
     },
   },
+  mainnet: {
+    chainId: 1,
+    url: `${apiUrls.mainnet}${process.env.INFURA_API_KEY}`,
+  },
+  sepolia: {
+    chainId: 11155111,
+    url: `${apiUrls.sepolia}${process.env.INFURA_API_KEY}`,
+  },
   polygon: {
     chainId: 137,
     url: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
+  },
+  custom: {
+    chainId: 100000,
+    url: apiUrls.custom,
+    // gasPrice: 20000000000,
   },
 };
 
@@ -58,13 +72,19 @@ for (const network in networks) {
 
 // Extend HardhatRuntimeEnvironment
 extendEnvironment((hre: HardhatRuntimeEnvironment) => {
-  hre.aragonToVerifyContracts = [];
+  (hre as any).aragonToVerifyContracts = [];
+  (hre as any).managingDao = {
+    address: '',
+    governancePlugin: '',
+  };
 });
 
 const config: HardhatUserConfig = {
   defaultNetwork: 'polygon',
   etherscan: {
     apiKey: {
+      mainnet: process.env.ETHERSCAN_API_KEY || '',
+      sepolia: process.env.ETHERSCAN_API_KEY || '',
       polygon: process.env.POLYGONSCAN_API_KEY || '',
     },
     customChains: [
@@ -74,6 +94,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: 'https://api-goerli.basescan.org/api',
           browserURL: 'https://goerli.basescan.org',
+        },
+      },
+      {
+        network: 'custom',
+        chainId: networks.custom.chainId!,
+        urls: {
+          apiURL: apiUrls.custom,
+          browserURL: '',
         },
       },
     ],
