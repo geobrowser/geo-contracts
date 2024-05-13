@@ -27,16 +27,17 @@ dotenvConfig({path: resolve(__dirname, dotenvConfigPath)});
 
 if (!process.env.PRIVATE_KEY) {
   throw new Error('PRIVATE_KEY in .env not set');
-} else if (!process.env.INFURA_API_KEY) {
-  throw new Error('INFURA_API_KEY in .env not set');
+} else if (!process.env.DEPLOYMENT_RPC_ENDPOINT) {
+  throw new Error('RPC endpoint in .env not set');
 }
 
 const {
-  NETWORK_NAME,
+  // NETWORK_NAME,
   INFURA_API_KEY,
   MANAGING_DAO_ADDRESS,
   PLUGIN_SETUP_PROCESSOR_ADDRESS,
   GOVERNANCE_PLUGIN_REPO_ADDRESS,
+  DEPLOYMENT_RPC_ENDPOINT
 } = process.env;
 
 const MGMT_DAO_PROPOSAL_DURATION =
@@ -52,16 +53,22 @@ const MGMT_DAO_INITIAL_EDITORS = process.env.MGMT_DAO_INITIAL_EDITORS
   ? process.env.MGMT_DAO_INITIAL_EDITORS.split(',')
   : ([] as string[]);
 
-const infuraProvider = new providers.InfuraProvider(
-  NETWORK_NAME,
-  INFURA_API_KEY
-);
-const deployer = new Wallet(process.env.PRIVATE_KEY!).connect(infuraProvider);
+// @TODO:
+// Make jsonrpc provider
+// const infuraProvider = new providers.InfuraProvider(
+//   NETWORK_NAME,
+//   INFURA_API_KEY
+// );
+
+const rollupProvider = new providers.JsonRpcProvider(DEPLOYMENT_RPC_ENDPOINT)
+
+const deployer = new Wallet(process.env.PRIVATE_KEY!).connect(rollupProvider);
 
 async function main() {
   if (
-    !NETWORK_NAME ||
-    !INFURA_API_KEY ||
+    // !NETWORK_NAME ||
+    // !INFURA_API_KEY ||
+    !DEPLOYMENT_RPC_ENDPOINT ||
     !MANAGING_DAO_ADDRESS ||
     !PLUGIN_SETUP_PROCESSOR_ADDRESS ||
     !GOVERNANCE_PLUGIN_REPO_ADDRESS
@@ -140,6 +147,8 @@ async function prepareInstallation() {
   if (!pluginSetupInfo.pluginSetup) {
     throw new Error('The Governance plugin is not available');
   }
+
+  // @TODO Also prepare installation for the space plugin
   const pluginSetup = GovernancePluginsSetup__factory.connect(
     pluginSetupInfo.pluginSetup,
     deployer

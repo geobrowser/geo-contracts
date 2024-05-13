@@ -34,6 +34,10 @@ export const networks: {[index: string]: NetworkUserConfig} = {
       }${process.env.ALCHEMY_API_KEY}`,
     },
   },
+  conduit: {
+    chainId: 19411,
+    url: process.env.DEPLOYMENT_RPC_ENDPOINT
+  },
   mainnet: {
     chainId: 1,
     url: `${apiUrls.mainnet}${process.env.INFURA_API_KEY}`,
@@ -47,7 +51,7 @@ export const networks: {[index: string]: NetworkUserConfig} = {
     url: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
   },
   custom: {
-    chainId: 100000,
+    chainId: 19411,
     url: apiUrls.custom,
     // gasPrice: 20000000000,
   },
@@ -80,7 +84,7 @@ extendEnvironment((hre: HardhatRuntimeEnvironment) => {
 });
 
 const config: HardhatUserConfig = {
-  defaultNetwork: 'polygon',
+  defaultNetwork: 'conduit',
   etherscan: {
     apiKey: {
       mainnet: process.env.ETHERSCAN_API_KEY || '',
