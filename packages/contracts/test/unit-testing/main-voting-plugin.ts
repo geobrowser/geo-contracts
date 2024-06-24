@@ -23,6 +23,7 @@ import {
 import {deployTestDao} from '../helpers/test-dao';
 import {
   ADDRESS_ONE,
+  ADDRESS_THREE,
   ADDRESS_TWO,
   ADDRESS_ZERO,
   advanceAfterVoteEnd,
@@ -36,19 +37,24 @@ import {
   UPDATE_ADDRESSES_PERMISSION_ID,
   UPDATE_VOTING_SETTINGS_PERMISSION_ID,
   UPGRADE_PLUGIN_PERMISSION_ID,
+  CONTENT_PERMISSION_ID,
   VoteOption,
   VotingMode,
   VotingSettings,
   ZERO_BYTES32,
+  SUBSPACE_PERMISSION_ID,
+  PROPOSER_PERMISSION_ID,
 } from './common';
 import {defaultMainVotingSettings} from './common';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
+import {BigNumber} from 'ethers';
 import {toUtf8Bytes} from 'ethers/lib/utils';
 import {ethers} from 'hardhat';
 
 type InitData = {contentUri: string};
 const mainVotingPluginInterface = MainVotingPlugin__factory.createInterface();
+const spacePluginInterface = SpacePlugin__factory.createInterface();
 
 describe('Main Voting Plugin', function () {
   let signers: SignerWithAddress[];
@@ -84,11 +90,13 @@ describe('Main Voting Plugin', function () {
     // inits
     await memberAccessPlugin.initialize(dao.address, {
       proposalDuration: 60 * 60 * 24 * 5,
-      mainVotingPlugin: mainVotingPlugin.address,
     });
-    await mainVotingPlugin.initialize(dao.address, defaultMainVotingSettings, [
-      alice.address,
-    ]);
+    await mainVotingPlugin.initialize(
+      dao.address,
+      defaultMainVotingSettings,
+      [alice.address],
+      memberAccessPlugin.address
+    );
     await spacePlugin.initialize(
       dao.address,
       defaultInput.contentUri,
@@ -125,37 +133,78 @@ describe('Main Voting Plugin', function () {
       dao.address,
       UPGRADE_PLUGIN_PERMISSION_ID
     );
+    // The DAO can publish edits on the Space
+    await dao.grant(spacePlugin.address, dao.address, CONTENT_PERMISSION_ID);
+    // The DAO can manage subspaces on the Space
+    await dao.grant(spacePlugin.address, dao.address, SUBSPACE_PERMISSION_ID);
     // The DAO is ROOT on itself
     await dao.grant(dao.address, dao.address, ROOT_PERMISSION_ID);
+    // The plugin can propose members on the member access helper
+    await dao.grant(
+      memberAccessPlugin.address,
+      mainVotingPlugin.address,
+      PROPOSER_PERMISSION_ID
+    );
     // Alice can make the DAO execute arbitrary stuff (test)
     await dao.grant(dao.address, alice.address, EXECUTE_PERMISSION_ID);
 
     // Alice is already an editor (see initialize)
 
     // Bob is a member
-    await memberAccessPlugin.proposeNewMember('0x', bob.address);
+    await mainVotingPlugin.proposeAddMember('0x', bob.address);
   });
 
   describe('initialize', async () => {
     it('reverts if trying to re-initialize', async () => {
       await expect(
-        memberAccessPlugin.initialize(dao.address, {
-          proposalDuration: 60 * 60 * 24 * 5,
-          mainVotingPlugin: mainVotingPlugin.address,
-        })
-      ).to.be.revertedWith('Initializable: contract is already initialized');
-      await expect(
-        mainVotingPlugin.initialize(dao.address, defaultMainVotingSettings, [
-          alice.address,
-        ])
-      ).to.be.revertedWith('Initializable: contract is already initialized');
-      await expect(
-        spacePlugin.initialize(
+        mainVotingPlugin.initialize(
           dao.address,
-          defaultInput.contentUri,
-          ADDRESS_ZERO
+          defaultMainVotingSettings,
+          [alice.address],
+          memberAccessPlugin.address
         )
       ).to.be.revertedWith('Initializable: contract is already initialized');
+    });
+
+    it('Fails to initialize with an incompatible main voting plugin', async () => {
+      // ok
+      mainVotingPlugin = await deployWithProxy<MainVotingPlugin>(
+        new MainVotingPlugin__factory(alice)
+      );
+      await expect(
+        mainVotingPlugin.initialize(
+          dao.address,
+          defaultMainVotingSettings,
+          [alice.address],
+          memberAccessPlugin.address
+        )
+      ).to.not.be.reverted;
+
+      // not ok
+      mainVotingPlugin = await deployWithProxy<MainVotingPlugin>(
+        new MainVotingPlugin__factory(alice)
+      );
+      await expect(
+        mainVotingPlugin.initialize(
+          dao.address,
+          defaultMainVotingSettings,
+          [alice.address],
+          bob.address
+        )
+      ).to.be.reverted;
+
+      // not ok
+      mainVotingPlugin = await deployWithProxy<MainVotingPlugin>(
+        new MainVotingPlugin__factory(alice)
+      );
+      await expect(
+        mainVotingPlugin.initialize(
+          dao.address,
+          defaultMainVotingSettings,
+          [alice.address],
+          spacePlugin.address
+        )
+      ).to.be.reverted;
     });
 
     it('The plugin has one editor after created', async () => {
@@ -166,7 +215,8 @@ describe('Main Voting Plugin', function () {
       await mainVotingPlugin.initialize(
         dao.address,
         defaultMainVotingSettings,
-        [alice.address]
+        [alice.address],
+        memberAccessPlugin.address
       );
       await mineBlock();
 
@@ -188,7 +238,8 @@ describe('Main Voting Plugin', function () {
       await mainVotingPlugin.initialize(
         dao.address,
         defaultMainVotingSettings,
-        [bob.address]
+        [bob.address],
+        memberAccessPlugin.address
       );
       await mineBlock();
 
@@ -206,6 +257,28 @@ describe('Main Voting Plugin', function () {
   });
 
   context('Before proposals', () => {
+    it('Voting on a non-created proposal reverts', async () => {
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
+
+      await expect(mainVotingPlugin.vote(0, VoteOption.Yes, false)).to.be
+        .reverted;
+      await expect(mainVotingPlugin.vote(10, VoteOption.No, false)).to.be
+        .reverted;
+      await expect(mainVotingPlugin.vote(50, VoteOption.Abstain, false)).to.be
+        .reverted;
+      await expect(mainVotingPlugin.vote(500, VoteOption.None, false)).to.be
+        .reverted;
+
+      await expect(mainVotingPlugin.vote(0, VoteOption.Yes, true)).to.be
+        .reverted;
+      await expect(mainVotingPlugin.vote(1, VoteOption.No, true)).to.be
+        .reverted;
+      await expect(mainVotingPlugin.vote(2, VoteOption.Abstain, true)).to.be
+        .reverted;
+      await expect(mainVotingPlugin.vote(3, VoteOption.None, true)).to.be
+        .reverted;
+    });
+
     it('Only members can create proposals', async () => {
       await expect(
         mainVotingPlugin.connect(alice).createProposal(
@@ -247,6 +320,94 @@ describe('Main Voting Plugin', function () {
           VoteOption.None,
           true // auto execute
         )
+      )
+        .to.be.revertedWithCustomError(mainVotingPlugin, 'NotAMember')
+        .withArgs(dave.address);
+    });
+
+    it('Only members can call proposal creation wrappers', async () => {
+      expect(await mainVotingPlugin.isMember(alice.address)).to.be.true;
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.be.true;
+
+      expect(await mainVotingPlugin.proposalCount()).to.equal(
+        BigNumber.from(0)
+      );
+
+      await expect(
+        mainVotingPlugin
+          .connect(alice)
+          .proposeEdits(
+            toUtf8Bytes('ipfs://meta'),
+            'ipfs://edits',
+            spacePlugin.address
+          )
+      ).to.not.be.reverted;
+
+      expect(await mainVotingPlugin.proposalCount()).to.equal(
+        BigNumber.from(1)
+      );
+
+      expect(await mainVotingPlugin.isMember(bob.address)).to.be.true;
+      await expect(
+        mainVotingPlugin
+          .connect(bob)
+          .proposeAcceptSubspace(
+            toUtf8Bytes('ipfs://meta-2'),
+            ADDRESS_THREE,
+            spacePlugin.address
+          )
+      ).to.not.be.reverted;
+
+      expect(await mainVotingPlugin.proposalCount()).to.equal(
+        BigNumber.from(2)
+      );
+
+      await expect(
+        mainVotingPlugin
+          .connect(bob)
+          .proposeRemoveSubspace(
+            toUtf8Bytes('ipfs://more-meta-here'),
+            bob.address,
+            spacePlugin.address
+          )
+      ).to.not.be.reverted;
+
+      expect(await mainVotingPlugin.proposalCount()).to.equal(
+        BigNumber.from(3)
+      );
+
+      await expect(
+        mainVotingPlugin
+          .connect(carol)
+          .proposeEdits(
+            toUtf8Bytes('ipfs://meta'),
+            'ipfs://edits',
+            spacePlugin.address
+          )
+      )
+        .to.be.revertedWithCustomError(mainVotingPlugin, 'NotAMember')
+        .withArgs(carol.address);
+
+      await expect(
+        mainVotingPlugin
+          .connect(dave)
+          .proposeAcceptSubspace(
+            toUtf8Bytes('ipfs://'),
+            ADDRESS_THREE,
+            spacePlugin.address
+          )
+      )
+        .to.be.revertedWithCustomError(mainVotingPlugin, 'NotAMember')
+        .withArgs(dave.address);
+
+      await expect(
+        mainVotingPlugin
+          .connect(dave)
+          .proposeRemoveSubspace(
+            toUtf8Bytes('ipfs://'),
+            ADDRESS_ONE,
+            spacePlugin.address
+          )
       )
         .to.be.revertedWithCustomError(mainVotingPlugin, 'NotAMember')
         .withArgs(dave.address);
@@ -305,7 +466,7 @@ describe('Main Voting Plugin', function () {
         )
       ).to.be.reverted;
 
-      // Bob can create without mainVotingPlugin
+      // Bob can create without voting
       await expect(
         mainVotingPlugin.connect(bob).createProposal(
           toUtf8Bytes('ipfs://'),
@@ -340,38 +501,38 @@ describe('Main Voting Plugin', function () {
     });
 
     it('isMember() returns true when appropriate', async () => {
-      expect(await memberAccessPlugin.isMember(ADDRESS_ZERO)).to.eq(false);
-      expect(await memberAccessPlugin.isMember(ADDRESS_ONE)).to.eq(false);
-      expect(await memberAccessPlugin.isMember(ADDRESS_TWO)).to.eq(false);
+      expect(await mainVotingPlugin.isMember(ADDRESS_ZERO)).to.eq(false);
+      expect(await mainVotingPlugin.isMember(ADDRESS_ONE)).to.eq(false);
+      expect(await mainVotingPlugin.isMember(ADDRESS_TWO)).to.eq(false);
 
-      expect(await memberAccessPlugin.isMember(alice.address)).to.eq(true);
-      expect(await memberAccessPlugin.isMember(bob.address)).to.eq(true);
+      expect(await mainVotingPlugin.isMember(alice.address)).to.eq(true);
+      expect(await mainVotingPlugin.isMember(bob.address)).to.eq(true);
 
-      expect(await memberAccessPlugin.isMember(carol.address)).to.eq(false);
+      expect(await mainVotingPlugin.isMember(carol.address)).to.eq(false);
 
-      await memberAccessPlugin.proposeNewMember('0x', carol.address);
-      expect(await memberAccessPlugin.isMember(carol.address)).to.eq(true);
+      await mainVotingPlugin.proposeAddMember('0x', carol.address);
+      expect(await mainVotingPlugin.isMember(carol.address)).to.eq(true);
 
-      await memberAccessPlugin.proposeRemoveMember('0x', carol.address);
-      expect(await memberAccessPlugin.isMember(carol.address)).to.eq(false);
+      await mainVotingPlugin.proposeRemoveMember('0x', carol.address);
+      expect(await mainVotingPlugin.isMember(carol.address)).to.eq(false);
 
       await makeEditor(carol.address);
 
-      expect(await memberAccessPlugin.isMember(carol.address)).to.eq(true);
+      expect(await mainVotingPlugin.isMember(carol.address)).to.eq(true);
     });
 
     it('isEditor() returns true when appropriate', async () => {
-      expect(await memberAccessPlugin.isEditor(ADDRESS_ZERO)).to.eq(false);
-      expect(await memberAccessPlugin.isEditor(ADDRESS_ONE)).to.eq(false);
-      expect(await memberAccessPlugin.isEditor(ADDRESS_TWO)).to.eq(false);
+      expect(await mainVotingPlugin.isEditor(ADDRESS_ZERO)).to.eq(false);
+      expect(await mainVotingPlugin.isEditor(ADDRESS_ONE)).to.eq(false);
+      expect(await mainVotingPlugin.isEditor(ADDRESS_TWO)).to.eq(false);
 
-      expect(await memberAccessPlugin.isEditor(alice.address)).to.eq(true);
-      expect(await memberAccessPlugin.isEditor(bob.address)).to.eq(false);
-      expect(await memberAccessPlugin.isEditor(carol.address)).to.eq(false);
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.eq(true);
+      expect(await mainVotingPlugin.isEditor(bob.address)).to.eq(false);
+      expect(await mainVotingPlugin.isEditor(carol.address)).to.eq(false);
 
       await makeEditor(carol.address);
 
-      expect(await memberAccessPlugin.isEditor(carol.address)).to.eq(true);
+      expect(await mainVotingPlugin.isEditor(carol.address)).to.eq(true);
     });
   });
 
@@ -415,7 +576,7 @@ describe('Main Voting Plugin', function () {
     it('Proposals created by a member require editor votes', async () => {
       let pid = 0;
       // Carol member
-      await memberAccessPlugin.proposeNewMember('0x', carol.address);
+      await mainVotingPlugin.proposeAddMember('0x', carol.address);
       // Bob editor
       await proposeNewEditor(bob.address);
 
@@ -477,6 +638,379 @@ describe('Main Voting Plugin', function () {
         mainVotingPlugin.connect(bob).vote(pid, VoteOption.Yes, false)
       ).to.not.be.reverted;
       expect(await mainVotingPlugin.canExecute(pid)).to.eq(true);
+    });
+
+    it("At least an editor who didn't create the proposal must vote", async () => {
+      let pid: number;
+      // Alice, Bob and Carol: editors
+      await proposeNewEditor(bob.address);
+      await proposeNewEditor(carol.address);
+      pid = (await mainVotingPlugin.proposalCount()).toNumber() - 1;
+      await expect(
+        mainVotingPlugin.connect(bob).vote(pid, VoteOption.Yes, true)
+      ).to.not.be.reverted;
+
+      // Proposal 1
+      await expect(createDummyProposal(alice, false)).to.not.be.reverted;
+      pid++;
+      expect(await mainVotingPlugin.canExecute(pid)).to.eq(false);
+
+      // Alice votes Yes
+      await expect(mainVotingPlugin.vote(pid, VoteOption.Yes, false)).to.not.be
+        .reverted;
+      expect(await mainVotingPlugin.canExecute(pid)).to.eq(false);
+
+      // Bob votes No (50/50)
+      await expect(
+        mainVotingPlugin.connect(bob).vote(pid, VoteOption.No, false)
+      ).to.not.be.reverted;
+      expect(await mainVotingPlugin.canExecute(pid)).to.eq(false);
+
+      // Carol votes Yes (66% yes)
+      await expect(
+        mainVotingPlugin.connect(carol).vote(pid, VoteOption.Yes, false)
+      ).to.not.be.reverted;
+      expect(await mainVotingPlugin.canExecute(pid)).to.eq(true);
+
+      // Proposal 2
+      await expect(createDummyProposal(alice, true)).to.not.be.reverted;
+      pid++;
+      expect(await mainVotingPlugin.canExecute(pid)).to.eq(false);
+
+      // Bob votes (66% yes)
+      await expect(
+        mainVotingPlugin.connect(bob).vote(pid, VoteOption.Yes, false)
+      ).to.not.be.reverted;
+      expect(await mainVotingPlugin.canExecute(pid)).to.eq(true);
+    });
+  });
+
+  context('Proposal wrappers', () => {
+    it('proposeEdits creates a proposal with the right values', async () => {
+      let pid = 0;
+
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
+      await expect(
+        mainVotingPlugin.proposeEdits(
+          toUtf8Bytes('ipfs://metadata'),
+          'ipfs://edits-uri',
+          spacePlugin.address
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(1);
+
+      let proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(spacePlugin.address);
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        spacePluginInterface.encodeFunctionData('publishEdits', [
+          'ipfs://edits-uri',
+        ])
+      );
+
+      // 2
+      pid++;
+
+      await expect(
+        mainVotingPlugin.proposeEdits(
+          toUtf8Bytes('ipfs://more-metadata-here'),
+          'ipfs://more-edits-uri',
+          '0x5555555555666666666677777777778888888888'
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(2);
+
+      proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(
+        '0x5555555555666666666677777777778888888888'
+      );
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        spacePluginInterface.encodeFunctionData('publishEdits', [
+          'ipfs://more-edits-uri',
+        ])
+      );
+    });
+
+    it('proposeAcceptSubspace creates a proposal with the right values', async () => {
+      let pid = 0;
+      let newSubspacePluginAddress =
+        '0x1234567890123456789012345678901234567890';
+
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
+      await expect(
+        mainVotingPlugin.proposeAcceptSubspace(
+          toUtf8Bytes('ipfs://'),
+          newSubspacePluginAddress,
+          spacePlugin.address
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(1);
+
+      let proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(spacePlugin.address);
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        spacePluginInterface.encodeFunctionData('acceptSubspace', [
+          newSubspacePluginAddress,
+        ])
+      );
+
+      // 2
+      pid++;
+      newSubspacePluginAddress = '0x0123456789012345678901234567890123456789';
+
+      await expect(
+        mainVotingPlugin.proposeAcceptSubspace(
+          toUtf8Bytes('ipfs://more-data-here'),
+          newSubspacePluginAddress,
+          '0x5555555555666666666677777777778888888888'
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(2);
+
+      proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(
+        '0x5555555555666666666677777777778888888888'
+      );
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        spacePluginInterface.encodeFunctionData('acceptSubspace', [
+          newSubspacePluginAddress,
+        ])
+      );
+    });
+
+    it('proposeRemoveSubspace creates a proposal with the right values', async () => {
+      let pid = 0;
+      let subspaceToRemove = '0x1234567890123456789012345678901234567890';
+
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
+      await expect(
+        mainVotingPlugin.proposeRemoveSubspace(
+          toUtf8Bytes('ipfs://'),
+          subspaceToRemove,
+          spacePlugin.address
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(1);
+
+      let proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(spacePlugin.address);
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        spacePluginInterface.encodeFunctionData('removeSubspace', [
+          subspaceToRemove,
+        ])
+      );
+
+      // 2
+      pid++;
+      subspaceToRemove = '0x0123456789012345678901234567890123456789';
+
+      await expect(
+        mainVotingPlugin.proposeRemoveSubspace(
+          toUtf8Bytes('ipfs://more-data-here'),
+          subspaceToRemove,
+          '0x5555555555666666666677777777778888888888'
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(2);
+
+      proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(
+        '0x5555555555666666666677777777778888888888'
+      );
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        spacePluginInterface.encodeFunctionData('removeSubspace', [
+          subspaceToRemove,
+        ])
+      );
+    });
+
+    it('proposeAddMember creates a proposal on the MemberAccessPlugin', async () => {
+      let msPid = 1;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
+      expect((await memberAccessPlugin.proposalCount()).toNumber()).to.eq(1);
+      await expect(
+        mainVotingPlugin.proposeAddMember(
+          toUtf8Bytes('ipfs://meta'),
+          carol.address
+        )
+      ).to.not.be.reverted;
+
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
+      expect((await memberAccessPlugin.proposalCount()).toNumber()).to.eq(2);
+
+      let proposal = await memberAccessPlugin.getProposal(msPid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(mainVotingPlugin.address);
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        mainVotingPluginInterface.encodeFunctionData('addMember', [
+          carol.address,
+        ])
+      );
+
+      // 2
+      msPid++;
+      await expect(
+        mainVotingPlugin.proposeAddMember(
+          toUtf8Bytes('ipfs://more-meta'),
+          ADDRESS_THREE
+        )
+      ).to.not.be.reverted;
+
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
+      expect((await memberAccessPlugin.proposalCount()).toNumber()).to.eq(3);
+
+      proposal = await memberAccessPlugin.getProposal(msPid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(mainVotingPlugin.address);
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        mainVotingPluginInterface.encodeFunctionData('addMember', [
+          ADDRESS_THREE,
+        ])
+      );
+    });
+
+    it('proposeRemoveMember creates a proposal with the right values', async () => {
+      let pid = 0;
+
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
+      await expect(
+        mainVotingPlugin.proposeRemoveMember(
+          toUtf8Bytes('ipfs://meta'),
+          alice.address
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(1);
+
+      let proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(mainVotingPlugin.address);
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        mainVotingPluginInterface.encodeFunctionData('removeMember', [
+          alice.address,
+        ])
+      );
+
+      // 2
+      pid++;
+
+      await expect(
+        mainVotingPlugin.proposeRemoveMember(
+          toUtf8Bytes('ipfs://more-meta'),
+          bob.address
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(2);
+
+      proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(mainVotingPlugin.address);
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        mainVotingPluginInterface.encodeFunctionData('removeMember', [
+          bob.address,
+        ])
+      );
+    });
+
+    it('proposeAddEditor creates a proposal with the right values', async () => {
+      let pid = 0;
+
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
+      await expect(
+        mainVotingPlugin.proposeAddEditor(
+          toUtf8Bytes('ipfs://meta'),
+          carol.address
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(1);
+
+      let proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(mainVotingPlugin.address);
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        mainVotingPluginInterface.encodeFunctionData('addEditor', [
+          carol.address,
+        ])
+      );
+
+      // 2
+      pid++;
+
+      await expect(
+        mainVotingPlugin.proposeAddEditor(
+          toUtf8Bytes('ipfs://more-meta'),
+          bob.address
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(2);
+
+      proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(mainVotingPlugin.address);
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        mainVotingPluginInterface.encodeFunctionData('addEditor', [bob.address])
+      );
+    });
+
+    it('proposeRemoveEditor creates a proposal with the right values', async () => {
+      let pid = 0;
+      await makeEditor(bob.address);
+
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
+      await expect(
+        mainVotingPlugin.proposeRemoveEditor(
+          toUtf8Bytes('ipfs://meta'),
+          alice.address
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(1);
+
+      let proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(mainVotingPlugin.address);
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        mainVotingPluginInterface.encodeFunctionData('removeEditor', [
+          alice.address,
+        ])
+      );
+
+      // 2
+      pid++;
+
+      await expect(
+        mainVotingPlugin.proposeRemoveEditor(
+          toUtf8Bytes('ipfs://more-meta'),
+          bob.address
+        )
+      ).to.not.be.reverted;
+      expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(2);
+
+      proposal = await mainVotingPlugin.getProposal(pid);
+      expect(proposal.actions.length).to.eq(1);
+      expect(proposal.actions[0].to).to.eq(mainVotingPlugin.address);
+      expect(proposal.actions[0].value.toNumber()).to.eq(0);
+      expect(proposal.actions[0].data).to.eq(
+        mainVotingPluginInterface.encodeFunctionData('removeEditor', [
+          bob.address,
+        ])
+      );
     });
   });
 
@@ -1020,7 +1554,6 @@ describe('Main Voting Plugin', function () {
                   {
                     votingMode: 0,
                     supportThreshold: 12345,
-                    minParticipation: 23456,
                     duration: 60 * 60 * 3,
                   },
                 ]
@@ -1033,7 +1566,7 @@ describe('Main Voting Plugin', function () {
         )
       )
         .to.emit(mainVotingPlugin, 'VotingSettingsUpdated')
-        .withArgs(0, 12345, 23456, 60 * 60 * 3);
+        .withArgs(0, 12345, 60 * 60 * 3);
     });
 
     it('The DAO can add editors', async () => {
@@ -1127,6 +1660,84 @@ describe('Main Voting Plugin', function () {
       ];
 
       await expect(dao.execute(ZERO_BYTES32, actions, 0)).to.not.be.reverted;
+    });
+  });
+
+  context('Joining a space via MemberAccessPlugin', () => {
+    it('Proposing new members via MemberAccess plugin grants membership', async () => {
+      expect(await mainVotingPlugin.isMember(carol.address)).to.be.false;
+      await mainVotingPlugin.proposeAddMember(
+        toUtf8Bytes('ipfs://'),
+        carol.address
+      );
+      expect(await mainVotingPlugin.isMember(carol.address)).to.be.true;
+
+      // 2
+      expect(await mainVotingPlugin.isMember(ADDRESS_THREE)).to.be.false;
+      await mainVotingPlugin.proposeAddMember(
+        toUtf8Bytes('ipfs://'),
+        ADDRESS_THREE
+      );
+      expect(await mainVotingPlugin.isMember(ADDRESS_THREE)).to.be.true;
+    });
+  });
+
+  context('Leaving a space', () => {
+    it('Completely removes an editor', async () => {
+      await makeEditor(bob.address);
+
+      // Bob leaves
+      expect(await mainVotingPlugin.isEditor(bob.address)).to.be.true;
+      expect(await mainVotingPlugin.isMember(bob.address)).to.be.true;
+
+      await expect(mainVotingPlugin.connect(bob).leaveSpace()).to.not.be
+        .reverted;
+
+      expect(await mainVotingPlugin.isEditor(bob.address)).to.be.false;
+      expect(await mainVotingPlugin.isMember(bob.address)).to.be.false;
+
+      // Alice leaves
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.be.true;
+      expect(await mainVotingPlugin.isMember(alice.address)).to.be.true;
+
+      await expect(mainVotingPlugin.leaveSpace()).to.not.be.reverted;
+
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.be.false;
+      expect(await mainVotingPlugin.isMember(alice.address)).to.be.false;
+    });
+
+    it('Allows a member to leave', async () => {
+      await mainVotingPlugin.proposeAddMember(
+        toUtf8Bytes('ipfs://'),
+        carol.address
+      );
+
+      // Bob leaves
+      expect(await mainVotingPlugin.isMember(bob.address)).to.be.true;
+      await expect(mainVotingPlugin.connect(bob).leaveSpace()).to.not.be
+        .reverted;
+      expect(await mainVotingPlugin.isMember(bob.address)).to.be.false;
+
+      // Carol leaves
+      expect(await mainVotingPlugin.isMember(carol.address)).to.be.true;
+      await expect(mainVotingPlugin.connect(carol).leaveSpace()).to.not.be
+        .reverted;
+      expect(await mainVotingPlugin.isMember(carol.address)).to.be.false;
+    });
+
+    it('Allows an editor to give editorship away', async () => {
+      await makeEditor(bob.address);
+
+      // Bob leaves as admin
+      expect(await mainVotingPlugin.isEditor(bob.address)).to.be.true;
+      await expect(mainVotingPlugin.connect(bob).leaveSpaceAsEditor()).to.not.be
+        .reverted;
+      expect(await mainVotingPlugin.isEditor(bob.address)).to.be.false;
+
+      // Alice leaves as editor
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.be.true;
+      await expect(mainVotingPlugin.leaveSpaceAsEditor()).to.not.be.reverted;
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.be.false;
     });
   });
 
@@ -1319,12 +1930,14 @@ describe('Tests replicated from the original AddressList plugin', async () => {
       beforeEach(async () => {
         votingSettings.votingMode = VotingMode.Standard;
 
-        await mainVotingPlugin.initialize(dao.address, votingSettings, [
-          signers[0].address,
-        ]);
+        await mainVotingPlugin.initialize(
+          dao.address,
+          votingSettings,
+          [signers[0].address],
+          memberAccessPlugin.address
+        );
         await memberAccessPlugin.initialize(dao.address, {
           proposalDuration: 60 * 60 * 24 * 5,
-          mainVotingPlugin: mainVotingPlugin.address,
         });
         await makeMembers(signers);
         await makeEditors(signers.slice(1)); // editors 2-10
@@ -1477,12 +2090,14 @@ describe('Tests replicated from the original AddressList plugin', async () => {
       beforeEach(async () => {
         votingSettings.votingMode = VotingMode.EarlyExecution;
 
-        await mainVotingPlugin.initialize(dao.address, votingSettings, [
-          signers[0].address,
-        ]);
+        await mainVotingPlugin.initialize(
+          dao.address,
+          votingSettings,
+          [signers[0].address],
+          memberAccessPlugin.address
+        );
         await memberAccessPlugin.initialize(dao.address, {
           proposalDuration: 60 * 60 * 24 * 5,
-          mainVotingPlugin: mainVotingPlugin.address,
         });
         await makeMembers(signers);
         await makeEditors(signers.slice(1)); // editors 2-10
@@ -1701,12 +2316,14 @@ describe('Tests replicated from the original AddressList plugin', async () => {
       beforeEach(async () => {
         votingSettings.votingMode = VotingMode.VoteReplacement;
 
-        await mainVotingPlugin.initialize(dao.address, votingSettings, [
-          signers[0].address,
-        ]);
+        await mainVotingPlugin.initialize(
+          dao.address,
+          votingSettings,
+          [signers[0].address],
+          memberAccessPlugin.address
+        );
         await memberAccessPlugin.initialize(dao.address, {
           proposalDuration: 60 * 60 * 24 * 5,
-          mainVotingPlugin: mainVotingPlugin.address,
         });
         await makeMembers(signers);
         await makeEditors(signers.slice(1)); // editors 2-10
@@ -1865,16 +2482,16 @@ describe('Tests replicated from the original AddressList plugin', async () => {
   });
 
   describe('Different configurations:', async () => {
-    describe('A simple majority vote with >50% support and >=25% participation required', async () => {
+    describe('A simple majority vote with >50% support and early execution', async () => {
       beforeEach(async () => {
-        votingSettings.minParticipation = pctToRatio(25);
-
-        await mainVotingPlugin.initialize(dao.address, votingSettings, [
-          signers[0].address,
-        ]);
+        await mainVotingPlugin.initialize(
+          dao.address,
+          votingSettings,
+          [signers[0].address],
+          memberAccessPlugin.address
+        );
         await memberAccessPlugin.initialize(dao.address, {
           proposalDuration: 60 * 60 * 24 * 5,
-          mainVotingPlugin: mainVotingPlugin.address,
         });
         await makeMembers(signers);
         await makeEditors(signers.slice(1)); // editors 2-10
@@ -1891,7 +2508,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
         );
       });
 
-      it('does not execute if support is high enough but participation is too low', async () => {
+      it('does not execute if support is high but only the creator voted', async () => {
         await advanceIntoVoteTime(startDate, endDate);
 
         await mainVotingPlugin
@@ -1912,7 +2529,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
         expect(await mainVotingPlugin.canExecute(id)).to.be.false;
       });
 
-      it('does not execute if participation is high enough but support is too low', async () => {
+      it('does not execute if a non-creator voted but support is too low', async () => {
         await advanceIntoVoteTime(startDate, endDate);
 
         await voteWithSigners(mainVotingPlugin, id, signers, {
@@ -1934,7 +2551,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
         expect(await mainVotingPlugin.canExecute(id)).to.be.false;
       });
 
-      it('executes after the duration if participation and support are met', async () => {
+      it('executes after the duration if a non-creator voted and support is met', async () => {
         await advanceIntoVoteTime(startDate, endDate);
 
         await voteWithSigners(mainVotingPlugin, id, signers, {
@@ -1991,178 +2608,18 @@ describe('Tests replicated from the original AddressList plugin', async () => {
       });
     });
 
-    describe('A special majority vote with >50% support and >=75% participation required and early execution enabled', async () => {
-      beforeEach(async () => {
-        votingSettings.minParticipation = pctToRatio(75);
-
-        await mainVotingPlugin.initialize(dao.address, votingSettings, [
-          signers[0].address,
-        ]);
-        await memberAccessPlugin.initialize(dao.address, {
-          proposalDuration: 60 * 60 * 24 * 5,
-          mainVotingPlugin: mainVotingPlugin.address,
-        });
-        await makeMembers(signers);
-        await makeEditors(signers.slice(1)); // editors 2-10
-
-        startDate = (await getTime()) + startOffset;
-        endDate = startDate + votingSettings.duration;
-
-        await mainVotingPlugin.createProposal(
-          dummyMetadata,
-          dummyActions,
-          0,
-          VoteOption.None,
-          false
-        );
-      });
-
-      it('does not execute if support is high enough but participation is too low', async () => {
-        await advanceIntoVoteTime(startDate, endDate);
-
-        await mainVotingPlugin
-          .connect(signers[0])
-          .vote(id, VoteOption.Yes, false);
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
-
-        await advanceAfterVoteEnd(endDate);
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.isSupportThresholdReached(id)).to.be.true;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
-      });
-
-      it('does not execute if participation is high enough but support is too low', async () => {
-        await advanceIntoVoteTime(startDate, endDate);
-
-        await voteWithSigners(mainVotingPlugin, id, signers, {
-          yes: [0], // 1 votes
-          no: [1, 2, 3, 4, 5, 6, 7], // 7 votes
-          abstain: [], // 0 votes
-        });
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
-        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
-
-        await advanceAfterVoteEnd(endDate);
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
-        expect(await mainVotingPlugin.isSupportThresholdReached(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
-      });
-
-      it('executes after the duration if participation and support thresholds are met', async () => {
-        await advanceIntoVoteTime(startDate, endDate);
-
-        await voteWithSigners(mainVotingPlugin, id, signers, {
-          yes: [0, 1, 2], // 3 votes
-          no: [3, 4], // 2 votes
-          abstain: [5, 6, 7], // 3 votes
-        });
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
-        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
-
-        await advanceAfterVoteEnd(endDate);
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
-        expect(await mainVotingPlugin.isSupportThresholdReached(id)).to.be.true;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.true;
-      });
-
-      it('should not allow the vote to pass if the minimum participation is not reached', async () => {
-        await advanceIntoVoteTime(startDate, endDate);
-
-        await voteWithSigners(mainVotingPlugin, id, signers, {
-          yes: [0, 1, 2, 3, 4, 5], // 6 votes
-          no: [], // 0 votes
-          abstain: [], // 0 votes
-        });
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
-          .true;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
-
-        await advanceAfterVoteEnd(endDate);
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
-          .true;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
-      });
-
-      it('executes early if the participation exceeds the support threshold (assuming the latter is > 50%)', async () => {
-        await advanceIntoVoteTime(startDate, endDate);
-
-        await voteWithSigners(mainVotingPlugin, id, signers, {
-          yes: [0, 1, 2, 3], // 4 votes
-          no: [4, 5, 6], // 3 votes
-          abstain: [], // 0 votes
-        });
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
-
-        await mainVotingPlugin
-          .connect(signers[7])
-          .vote(id, VoteOption.Yes, false);
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
-        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.false; // participation is met but not support
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
-        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
-          .false;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.false; // Still not sufficient for early execution because the support could still be <= 50 if the two remaining voters vote no
-
-        await mainVotingPlugin
-          .connect(signers[8])
-          .vote(id, VoteOption.Abstain, false);
-
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
-        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
-          .true;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.true; // The vote` outcome cannot change anymore (5 yes, 3 no, 1 abstain)
-
-        await advanceAfterVoteEnd(endDate);
-
-        // this doesn't change after the vote is over
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
-        expect(await mainVotingPlugin.isSupportThresholdReached(id)).to.be.true;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.true;
-      });
-    });
-
-    describe('An edge case with `supportThreshold = 0` and `minParticipation = 0` in early execution mode activated', async () => {
+    describe('An edge case with `supportThreshold = 0` in early execution mode activated', async () => {
       beforeEach(async () => {
         votingSettings.supportThreshold = pctToRatio(0);
-        votingSettings.minParticipation = pctToRatio(0);
 
-        await mainVotingPlugin.initialize(dao.address, votingSettings, [
-          signers[0].address,
-        ]);
+        await mainVotingPlugin.initialize(
+          dao.address,
+          votingSettings,
+          [signers[0].address],
+          memberAccessPlugin.address
+        );
         await memberAccessPlugin.initialize(dao.address, {
           proposalDuration: 60 * 60 * 24 * 5,
-          mainVotingPlugin: mainVotingPlugin.address,
         });
         await makeMembers(signers);
         await makeEditors(signers.slice(1)); // editors 2-10
@@ -2183,7 +2640,8 @@ describe('Tests replicated from the original AddressList plugin', async () => {
         // does not execute early
         await advanceIntoVoteTime(startDate, endDate);
 
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
+        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
+          .false;
         expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
           .false;
         expect(await mainVotingPlugin.canExecute(id)).to.be.false;
@@ -2191,18 +2649,19 @@ describe('Tests replicated from the original AddressList plugin', async () => {
         // does not execute normally
         await advanceAfterVoteEnd(endDate);
 
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
+        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
+          .false;
         expect(await mainVotingPlugin.isSupportThresholdReached(id)).to.be
           .false;
         expect(await mainVotingPlugin.canExecute(id)).to.be.false;
       });
 
-      it('executes if participation and support are met', async () => {
+      it('executes if a non-creator voted and support is met', async () => {
         // Check if the proposal can execute early
         await advanceIntoVoteTime(startDate, endDate);
 
         await mainVotingPlugin
-          .connect(signers[0])
+          .connect(signers[1])
           .vote(id, VoteOption.Yes, false);
 
         expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
@@ -2219,17 +2678,18 @@ describe('Tests replicated from the original AddressList plugin', async () => {
       });
     });
 
-    describe('An edge case with `supportThreshold = 99.9999%` and `minParticipation = 100%` in early execution mode', async () => {
+    describe('An edge case with `supportThreshold = 99.9999%` in early execution mode', async () => {
       beforeEach(async () => {
         votingSettings.supportThreshold = pctToRatio(100).sub(1);
-        votingSettings.minParticipation = pctToRatio(100);
 
-        await mainVotingPlugin.initialize(dao.address, votingSettings, [
-          signers[0].address,
-        ]);
+        await mainVotingPlugin.initialize(
+          dao.address,
+          votingSettings,
+          [signers[0].address],
+          memberAccessPlugin.address
+        );
         await memberAccessPlugin.initialize(dao.address, {
           proposalDuration: 60 * 60 * 24 * 5,
-          mainVotingPlugin: mainVotingPlugin.address,
         });
         await makeMembers(signers);
         await makeEditors(signers.slice(1)); // editors 2-10
@@ -2246,7 +2706,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
         );
       });
 
-      it('does not execute with 9 votes', async () => {
+      it('does not early execute with 9 Yes votes', async () => {
         // does not execute early
         await advanceIntoVoteTime(startDate, endDate);
 
@@ -2256,22 +2716,20 @@ describe('Tests replicated from the original AddressList plugin', async () => {
           abstain: [], // 0 votes
         });
 
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
-          .false;
+        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
         expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
           .false;
         expect(await mainVotingPlugin.canExecute(id)).to.be.false;
 
-        // does not execute normally
+        // does execute normally, after
         await advanceAfterVoteEnd(endDate);
 
-        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
-          .false;
+        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
         expect(await mainVotingPlugin.isSupportThresholdReached(id)).to.be.true;
-        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
+        expect(await mainVotingPlugin.canExecute(id)).to.be.true;
       });
 
-      it('executes if participation and support are met', async () => {
+      it('executes if a non-creator voted and support is met', async () => {
         // Check if the proposal can execute early
         await advanceIntoVoteTime(startDate, endDate);
 
@@ -2287,6 +2745,124 @@ describe('Tests replicated from the original AddressList plugin', async () => {
         expect(await mainVotingPlugin.canExecute(id)).to.be.true;
 
         // Check if the proposal can execute normally
+        await advanceAfterVoteEnd(endDate);
+
+        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
+        expect(await mainVotingPlugin.isSupportThresholdReached(id)).to.be.true;
+        expect(await mainVotingPlugin.canExecute(id)).to.be.true;
+      });
+    });
+
+    describe('Support threshold of 50%', () => {
+      beforeEach(async () => {
+        votingSettings.supportThreshold = pctToRatio(50);
+
+        await mainVotingPlugin.initialize(
+          dao.address,
+          votingSettings,
+          [signers[0].address],
+          memberAccessPlugin.address
+        );
+        await memberAccessPlugin.initialize(dao.address, {
+          proposalDuration: 60 * 60 * 24 * 5,
+        });
+        await makeMembers(signers); // 10 members
+        await makeEditors(signers.slice(0, 5)); // editors 0-5
+
+        startDate = (await getTime()) + startOffset;
+        endDate = startDate + votingSettings.duration;
+
+        await mainVotingPlugin.createProposal(
+          dummyMetadata,
+          dummyActions,
+          0,
+          VoteOption.None,
+          false
+        );
+      });
+
+      it('does not execute if support is high enough but only the proposer voted', async () => {
+        await advanceIntoVoteTime(startDate, endDate);
+
+        expect(await mainVotingPlugin.addresslistLength()).to.eq(5);
+
+        // 1
+        await mainVotingPlugin
+          .connect(signers[0])
+          .vote(id, VoteOption.Yes, false);
+
+        const prop = await mainVotingPlugin.getProposal(id);
+        expect(prop.tally.yes).to.eq(1);
+        expect(prop.tally.no).to.eq(0);
+        expect(prop.tally.abstain).to.eq(0);
+
+        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
+          .false;
+        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
+          .false;
+        expect(await mainVotingPlugin.isSupportThresholdReached(id)).to.be.true;
+        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
+        await expect(mainVotingPlugin.execute(id))
+          .to.be.revertedWithCustomError(
+            mainVotingPlugin,
+            'ProposalExecutionForbidden'
+          )
+          .withArgs(id);
+      });
+
+      it('does not execute if participation is high enough but support is too low', async () => {
+        await advanceIntoVoteTime(startDate, endDate);
+
+        expect(await mainVotingPlugin.addresslistLength()).to.eq(5);
+        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
+          .false;
+
+        await voteWithSigners(mainVotingPlugin, id, signers, {
+          yes: [0], // 1 votes
+          no: [1, 2, 3, 4], // 4 votes
+          abstain: [], // 0 votes
+        });
+
+        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
+        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
+          .false;
+        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
+        await expect(mainVotingPlugin.execute(id))
+          .to.be.revertedWithCustomError(
+            mainVotingPlugin,
+            'ProposalExecutionForbidden'
+          )
+          .withArgs(id);
+        await advanceAfterVoteEnd(endDate);
+
+        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
+        expect(await mainVotingPlugin.isSupportThresholdReached(id)).to.be
+          .false;
+        expect(await mainVotingPlugin.canExecute(id)).to.be.false;
+        await expect(mainVotingPlugin.execute(id))
+          .to.be.revertedWithCustomError(
+            mainVotingPlugin,
+            'ProposalExecutionForbidden'
+          )
+          .withArgs(id);
+      });
+
+      it('executes after the duration if participation and support thresholds are met', async () => {
+        await advanceIntoVoteTime(startDate, endDate);
+
+        await voteWithSigners(mainVotingPlugin, id, signers, {
+          yes: [0, 1, 2], // 3 votes
+          no: [3, 4], // 2 votes
+          abstain: [], // 0 votes
+        });
+
+        expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;
+        expect(await mainVotingPlugin.isSupportThresholdReached(id)).to.be.true;
+        expect(await mainVotingPlugin.isSupportThresholdReachedEarly(id)).to.be
+          .true;
+
+        expect(await mainVotingPlugin.canExecute(id)).to.be.true;
+
         await advanceAfterVoteEnd(endDate);
 
         expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be.true;

@@ -1,7 +1,7 @@
 name: 'contracts'
 
 env:
-  INFURA_API_KEY: ${{ secrets.INFURA_API_KEY }}
+  ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
   working-directory: packages/contracts
 
 on:
@@ -25,7 +25,7 @@ jobs:
         uses: 'actions/setup-node@v3'
         with:
           cache: 'yarn'
-          node-version: 16
+          node-version: 18
 
       - name: 'Install the dependencies'
         run: 'yarn install'

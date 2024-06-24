@@ -7,6 +7,7 @@ import '@typechain/hardhat';
 import {config as dotenvConfig} from 'dotenv';
 import 'hardhat-deploy';
 import 'hardhat-gas-reporter';
+import 'hardhat-tracer';
 import {extendEnvironment, HardhatUserConfig} from 'hardhat/config';
 import {HardhatRuntimeEnvironment} from 'hardhat/types';
 import type {NetworkUserConfig} from 'hardhat/types';
@@ -17,11 +18,8 @@ const dotenvConfigPath: string = process.env.DOTENV_CONFIG_PATH || '../../.env';
 dotenvConfig({path: resolve(__dirname, dotenvConfigPath)});
 
 const apiUrls: NetworkNameMapping = {
-  mainnet: 'https://mainnet.infura.io/v3/',
-  sepolia: 'https://sepolia.infura.io/v3/',
-  polygon: 'https://polygon-mainnet.infura.io/v3/',
-  polygonMumbai: 'https://polygon-mumbai.infura.io/v3/',
-  baseGoerli: 'https://goerli.base.org',
+  mainnet: 'https://eth-mainnet.g.alchemy.com/v2/',
+  sepolia: 'https://eth-sepolia.g.alchemy.com/v2/',
   custom: process.env.DEPLOYMENT_RPC_ENDPOINT ?? '',
 };
 
@@ -36,11 +34,11 @@ export const networks: {[index: string]: NetworkUserConfig} = {
   },
   conduit: {
     chainId: 19411,
-    url: process.env.DEPLOYMENT_RPC_ENDPOINT
+    url: process.env.DEPLOYMENT_RPC_ENDPOINT,
   },
   mainnet: {
     chainId: 1,
-    url: `${apiUrls.mainnet}${process.env.INFURA_API_KEY}`,
+    url: `${apiUrls.mainnet}${process.env.ALCHEMY_API_KEY}`,
   },
   sepolia: {
     chainId: 11155111,
@@ -49,6 +47,7 @@ export const networks: {[index: string]: NetworkUserConfig} = {
   polygon: {
     chainId: 137,
     url: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
+    url: `${apiUrls.sepolia}${process.env.ALCHEMY_API_KEY}`,
   },
   custom: {
     chainId: 19411,

@@ -8,12 +8,10 @@ import {
 } from '../../typechain';
 import {PluginSetupRefStruct} from '../../typechain/@aragon/osx/framework/dao/DAOFactory';
 import {osxContracts} from '../../utils/helpers';
-import {toHex} from '../../utils/ipfs';
 import {getPluginRepoInfo} from '../../utils/plugin-repo-info';
 import {installPlugin, uninstallPlugin} from '../helpers/setup';
 import {deployTestDao} from '../helpers/test-dao';
 import {ADDRESS_ZERO} from '../unit-testing/common';
-// import { getNamedTypesFromMetadata } from "../helpers/types";
 import {
   DAO,
   PluginRepo__factory,
@@ -105,7 +103,7 @@ describe('SpacePluginSetup processing', function () {
     beforeEach(async () => {
       // Install build 1.
       const data = await setup.encodeInstallationParams(
-        toHex('ipfs://1234'),
+        '0x1234',
         ADDRESS_ZERO,
         pluginUpgrader
       );

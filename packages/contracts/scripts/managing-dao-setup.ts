@@ -37,7 +37,7 @@ const {
   MANAGING_DAO_ADDRESS,
   PLUGIN_SETUP_PROCESSOR_ADDRESS,
   GOVERNANCE_PLUGIN_REPO_ADDRESS,
-  DEPLOYMENT_RPC_ENDPOINT
+  DEPLOYMENT_RPC_ENDPOINT,
 } = process.env;
 
 const MGMT_DAO_PROPOSAL_DURATION =
@@ -60,7 +60,7 @@ const MGMT_DAO_INITIAL_EDITORS = process.env.MGMT_DAO_INITIAL_EDITORS
 //   INFURA_API_KEY
 // );
 
-const rollupProvider = new providers.JsonRpcProvider(DEPLOYMENT_RPC_ENDPOINT)
+const rollupProvider = new providers.JsonRpcProvider(DEPLOYMENT_RPC_ENDPOINT);
 
 const deployer = new Wallet(process.env.PRIVATE_KEY!).connect(rollupProvider);
 

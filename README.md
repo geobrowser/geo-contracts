@@ -41,15 +41,15 @@ In standard spaces, _members_ can create proposals while _editors_ can vote on t
 
 The most typical case will be telling the Space Plugin to emit the event of a proposal being processed. It can include emitting a new hash for the contents or accepting a subspace.
 
-<img src="./img/std-1.svg">
+<img src="./img/standard-1.svg">
 
 The Main Voting Plugin can also pass proposals that change its own settings.
 
-<img src="./img/std-2.svg">
+<img src="./img/standard-2.svg">
 
 To manage who can create proposals, the Member Access Plugin allows anyone to request becoming a member. Editors can approve or reject incoming proposals.
 
-<img src="./img/std-3.svg">
+<img src="./img/standard-3.svg">
 
 ### Personal Space
 
@@ -75,8 +75,9 @@ There's an optional feature, where a predefined address can execute the actions 
 
 ### Joining a space
 
-1. Someone calls `proposeNewMember()` on the `MemberAccessPlugin`
+1. Someone calls `proposeAddMember()` on the `MainVotingPlugin`
    - If the caller is the only editor, the proposal succeeds immediately
+   - The proposal is created on the `MemberAccessPlugin` because the governance rules differ from the rest of proposals
 2. One of the editors calls `approve()` or `reject()`
    - Calling `approve()` makes the proposal succeed
    - Calling `reject()` cancels the proposal
@@ -93,7 +94,7 @@ There's an optional feature, where a predefined address can execute the actions 
 ### Emitting content and managing subspaces
 
 1. When a proposal regarding the space is passed, the `MainVotingPlugin` will call `execute()` on the DAO
-2. The actions from the proposal will target the `processGeoProposal()`, `acceptSubspace()` or `removeSubspace()` functions on the `SpacePlugin`.
+2. The actions from the proposal will target the `publishEdits()`, `acceptSubspace()` or `removeSubspace()` functions on the `SpacePlugin`.
 3. The `SpacePlugin` will be called by the DAO and emit the corresponding events
 4. An external indexer will fetch all these events and update the current state of this specific space
 
@@ -147,6 +148,12 @@ See the `MemberAccessExecuteCondition` contract. It restricts what the [MemberAc
 [Learn more about OSx permissions](https://devs.aragon.org/docs/osx/how-it-works/core/permissions/)
 
 ### Permissions being used
+
+For standard governance spaces:
+<img src="./img/permission-overview-std.svg">
+
+For personal spaces:
+<img src="./img/permission-overview-personal.svg">
 
 Below are all the permissions that a [PluginSetup](#plugin-setup-contracts) contract may want to request:
 
@@ -254,13 +261,13 @@ This plugin is upgradeable.
 #### Methods
 
 ```solidity
-function initialize(IDAO _dao, string _firstBlockContentUri, address predecessorSpace);
+function initialize(IDAO _dao, string _firstContentUri, address predecessorSpace);
 
-function processGeoProposal(uint32 _blockIndex, uint32 _itemIndex, string _contentUri);
+function publishEdits(string _contentUri);
 
-function acceptSubspace(address _dao);
+function acceptSubspace(address _subspaceDao);
 
-function removeSubspace(address _dao);
+function removeSubspace(address _subspaceDao);
 ```
 
 Inherited:
@@ -282,15 +289,15 @@ function implementation() returns (address);
 #### Events
 
 ```solidity
-event GeoProposalProcessed(uint32 blockIndex, uint32 itemIndex, string contentUri);
-event SuccessorSpaceCreated(address predecessorSpace);
-event SubspaceAccepted(address dao);
-event SubspaceRemoved(address dao);
+event EditsPublished(address dao, string contentUri);
+event SuccessorSpaceCreated(address dao, address predecessorSpaceDao);
+event SubspaceAccepted(address dao, address subspaceDao);
+event SubspaceRemoved(address dao, address subspaceDao);
 ```
 
 #### Permissions
 
-- The DAO can call `processGeoProposal()` on the plugin
+- The DAO can call `publishEdits()` on the plugin
 - The DAO can accept/remove a subspace on the plugin
 - The DAO can upgrade the plugin
 - See [Plugin upgrader](#plugin-upgrader) (optional)
@@ -632,35 +639,6 @@ function encodeUninstallationParams(
 ) public pure returns (bytes memory)
 ```
 
-The JSON encoded ABI definition can also be found at the corresponding `src/<folder>/<name>-build-metadata.json` file:
-
-```json
-{
-  // ...
-  "pluginSetup": {
-    "prepareInstallation": {
-      // ...
-      "inputs": [
-        {
-          "name": "firstBlockContentUri",
-          "type": "string",
-          "internalType": "string",
-          "description": "The inital contents of the first block item."
-        },
-        {
-          "internalType": "address",
-          "name": "predecessorAddress",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "pluginUpgrader",
-          "type": "address"
-        }
-      ]
-    },
-```
-
 The same also applies to `prepareUpdate` (if present) and to `prepareUninstallation`.
 
 ### Available setup contracts
@@ -700,14 +678,6 @@ In the example, the code is making use of the existing JS client for [Aragon's T
 - The settings about the naming, ID's and versions can be found on `packages/contracts/plugin-setup-params.ts`.
 - The deployments made will populate data to the `packages/contracts/plugin-repo-info.json` and `packages/contracts/plugin-repo-info-dev.json`.
 - You need to copy `.env.template` into `.env` and provide your Infura API key
-
-### Plugin metadata
-
-Plugins need some basic metadata in order for JS clients to be able to handle installations and updates. Beyond a simple title and description, every contract's build metadata contains the ABI of the parameters that need to be encoded in order to prepare the plugin installation.
-
-Every plugin has an `initialize()` methos, which acts as the constructor for UUPS upgradeable contracts. This method will be passed its DAO's address, as well as a `bytes memory data` parameter, with all the settings encoded.
-
-The format of these settings is defined in the `packages/contracts/src/*-build.metadata.json` file. See the `pluginSetup` > `prepareInstallation` section.
 
 ## DO's and DONT's
 
