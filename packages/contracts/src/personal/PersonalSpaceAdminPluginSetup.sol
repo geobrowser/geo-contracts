@@ -20,6 +20,12 @@ contract PersonalSpaceAdminPluginSetup is PluginSetup {
     /// @notice The address of the `PersonalSpaceAdminPlugin` plugin logic contract to be cloned.
     address private immutable implementation_;
 
+    event GeoPersonalAdminPluginCreated(
+        address dao,
+        address personalAdminPlugin,
+        address initialEditor
+    );
+
     /// @notice Thrown if the editor address is zero.
     /// @param editor The initial editor address.
     error EditorAddressInvalid(address editor);
@@ -70,6 +76,8 @@ contract PersonalSpaceAdminPluginSetup is PluginSetup {
         );
 
         preparedSetupData.permissions = permissions;
+
+        emit GeoPersonalAdminPluginCreated(_dao, plugin, editor);
     }
 
     /// @inheritdoc IPluginSetup
