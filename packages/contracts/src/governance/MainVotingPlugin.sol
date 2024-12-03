@@ -171,7 +171,7 @@ contract MainVotingPlugin is Addresslist, MajorityVotingBase, IEditors, IMembers
         __MajorityVotingBase_init(_dao, _votingSettings);
 
         _addAddresses(_initialEditors);
-        emit EditorsAdded(_initialEditors);
+        emit EditorsAdded(address(_dao), _initialEditors);
 
         if (!_memberAccessPlugin.supportsInterface(MEMBER_ACCESS_INTERFACE_ID)) {
             revert InvalidInterface(address(_memberAccessPlugin));
