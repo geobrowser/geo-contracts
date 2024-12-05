@@ -413,7 +413,7 @@ contract MainVotingPlugin is Addresslist, MajorityVotingBase, IEditors, IMembers
             proposal_.parameters.startDate,
             proposal_.parameters.endDate,
             _metadataContentUri,
-            _spacePlugin,
+            address(_subspaceDao),
             address(dao())
         );
     }
@@ -445,7 +445,7 @@ contract MainVotingPlugin is Addresslist, MajorityVotingBase, IEditors, IMembers
             proposal_.parameters.startDate,
             proposal_.parameters.endDate,
             _metadataContentUri,
-            _spacePlugin,
+            address(_subspaceDao),
             address(dao())
         );
     }

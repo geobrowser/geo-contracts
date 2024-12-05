@@ -710,6 +710,87 @@
           "releaseMetadataURI": ""
         }
       }
+    },
+    {
+      "ensName": "geo-space-13",
+      "address": "0x0701454b0e80C53Ee8c3e0805616424758D7E7Fd",
+      "blockNumberOfDeployment": 28401,
+      "releases": {
+        "1": {
+          "builds": {
+            "1": {
+              "setup": {
+                "name": "SpacePluginSetup",
+                "address": "0x7F4E7aFD2E734E70487AdbC04939D68a6dA97Cf8",
+                "blockNumberOfDeployment": 28101
+              },
+              "implementation": {
+                "name": "SpacePlugin",
+                "address": "0x6aae377A4f8193C80B5560803D4Ed66fd4dDaf11",
+                "blockNumberOfDeployment": 28101
+              },
+              "helpers": [],
+              "buildMetadataURI": "",
+              "blockNumberOfPublication": 28405
+            }
+          },
+          "releaseMetadataURI": ""
+        }
+      }
+    },
+    {
+      "ensName": "geo-personal-voting-13",
+      "address": "0xAe8Ac47e5f3bDa62F6D1BD140AB8e1926D867355",
+      "blockNumberOfDeployment": 28402,
+      "releases": {
+        "1": {
+          "builds": {
+            "1": {
+              "setup": {
+                "name": "PersonalSpaceAdminPluginSetup",
+                "address": "0x7583CED60fa3Ff6023f7A3dDC1cf79dCCC27e5A3",
+                "blockNumberOfDeployment": 28102
+              },
+              "implementation": {
+                "name": "PersonalSpaceAdminPlugin",
+                "address": "0xeF0192ce6E6B625FA12F75cD1411135fEe82392d",
+                "blockNumberOfDeployment": 28102
+              },
+              "helpers": [],
+              "buildMetadataURI": "",
+              "blockNumberOfPublication": 28406
+            }
+          },
+          "releaseMetadataURI": ""
+        }
+      }
+    },
+    {
+      "ensName": "geo-governance-13",
+      "address": "0x70E786A75c7ef46C09665e25E1a683A936057087",
+      "blockNumberOfDeployment": 28403,
+      "releases": {
+        "1": {
+          "builds": {
+            "1": {
+              "setup": {
+                "name": "GovernancePluginsSetup",
+                "address": "0x50E72Cb8dA5E026BE76979f324F665FbE8945F50",
+                "blockNumberOfDeployment": 28404
+              },
+              "implementation": {
+                "name": "MainVotingPlugin and MemberAccessPlugin",
+                "address": "0x9Fb0e78ACF7ACe0E11af5B2271eA546b91d1CFFF",
+                "blockNumberOfDeployment": 28404
+              },
+              "helpers": [],
+              "buildMetadataURI": "",
+              "blockNumberOfPublication": 28407
+            }
+          },
+          "releaseMetadataURI": ""
+        }
+      }
     }
   ]
 }
