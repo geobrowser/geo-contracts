@@ -33,7 +33,7 @@ export const networks: {[index: string]: NetworkUserConfig} = {
     },
   },
   conduit: {
-    chainId: 19411,
+    chainId: 80451,
     url: process.env.DEPLOYMENT_RPC_ENDPOINT,
   },
   mainnet: {
@@ -47,7 +47,6 @@ export const networks: {[index: string]: NetworkUserConfig} = {
   polygon: {
     chainId: 137,
     url: `https://polygon-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`,
-    url: `${apiUrls.sepolia}${process.env.ALCHEMY_API_KEY}`,
   },
   custom: {
     chainId: 19411,
