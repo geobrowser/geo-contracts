@@ -3,6 +3,7 @@ import {
   SpacePlugin__factory,
   SpacePluginSetup,
   SpacePluginSetup__factory,
+  PluginSetupProcessor__factory,
 } from '../../typechain';
 import {getPluginSetupProcessorAddress} from '../../utils/helpers';
 import {deployTestDao} from '../helpers/test-dao';
@@ -19,31 +20,35 @@ import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
 import {ethers, network} from 'hardhat';
 
+const spacePluginInterface = SpacePlugin__factory.createInterface();
+const pspInterface = PluginSetupProcessor__factory.createInterface();
+
+export type InitData = {contentUri: string};
+
 describe('Space Plugin Setup', function () {
+  let pspAddress: string;
   let alice: SignerWithAddress;
   let bob: SignerWithAddress;
   let spacePluginSetup: SpacePluginSetup;
   let SpacePluginSetup: SpacePluginSetup__factory;
   let dao: DAO;
-  const defaultInitData = {contentUri: 'ipfs://', metadata: '0x'};
+  let defaultInitData: InitData;
 
   before(async () => {
     [alice, bob] = await ethers.getSigners();
     dao = await deployTestDao(alice);
+    pspAddress = getPluginSetupProcessorAddress(network.name);
 
-    const pspAddress = process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-      ? process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-      : getPluginSetupProcessorAddress(network.name, true);
-
-    SpacePluginSetup = new SpacePluginSetup__factory(alice);
+    const SpacePluginSetup = new SpacePluginSetup__factory(alice);
     spacePluginSetup = await SpacePluginSetup.deploy(pspAddress);
+
+    defaultInitData = {contentUri: 'ipfs://'};
   });
 
   describe('prepareInstallation', async () => {
     it('returns the plugin, helpers, and permissions (no pluginUpgrader)', async () => {
       const initData = await spacePluginSetup.encodeInstallationParams(
         defaultInitData.contentUri,
-        defaultInitData.metadata,
         ADDRESS_ZERO,
         ADDRESS_ZERO
       );
@@ -95,7 +100,6 @@ describe('Space Plugin Setup', function () {
       const pluginUpgrader = bob.address;
       const initData = await spacePluginSetup.encodeInstallationParams(
         defaultInitData.contentUri,
-        defaultInitData.metadata,
         ADDRESS_ZERO,
         pluginUpgrader
       );

@@ -7,7 +7,7 @@ import {
   SpacePluginSetup__factory,
 } from '../../typechain';
 import {PluginSetupRefStruct} from '../../typechain/@aragon/osx/framework/dao/DAOFactory';
-import {getPluginSetupProcessorAddress} from '../../utils/helpers';
+import {osxContracts} from '../../utils/helpers';
 import {getPluginRepoInfo} from '../../utils/plugin-repo-info';
 import {installPlugin, uninstallPlugin} from '../helpers/setup';
 import {deployTestDao} from '../helpers/test-dao';
@@ -21,7 +21,7 @@ import {
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
 import {BigNumber} from 'ethers';
-import {ethers, network} from 'hardhat';
+import {ethers} from 'hardhat';
 
 describe('SpacePluginSetup processing', function () {
   let deployer: SignerWithAddress;
@@ -33,20 +33,21 @@ describe('SpacePluginSetup processing', function () {
   before(async () => {
     [deployer] = await ethers.getSigners();
 
+    const hardhatForkNetwork = process.env.NETWORK_NAME ?? 'mainnet';
+
     const pluginRepoInfo = getPluginRepoInfo(
       SpacePluginSetupParams.PLUGIN_REPO_ENS_NAME,
-      network.name
+      'hardhat'
     );
     if (!pluginRepoInfo) {
       throw new Error('The plugin setup details are not available');
     }
 
     // PSP
-    const pspAddress = process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-      ? process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-      : getPluginSetupProcessorAddress(network.name, true);
-
-    psp = PluginSetupProcessor__factory.connect(pspAddress, deployer);
+    psp = PluginSetupProcessor__factory.connect(
+      osxContracts[hardhatForkNetwork]['PluginSetupProcessor'],
+      deployer
+    );
 
     // Deploy DAO.
     dao = await deployTestDao(deployer);
@@ -102,8 +103,7 @@ describe('SpacePluginSetup processing', function () {
     beforeEach(async () => {
       // Install build 1.
       const data = await setup.encodeInstallationParams(
-        'ipfs://',
-        '0x',
+        '0x1234',
         ADDRESS_ZERO,
         pluginUpgrader
       );

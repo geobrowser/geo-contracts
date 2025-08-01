@@ -6,7 +6,6 @@ import {CONTENT_PERMISSION_ID, SUBSPACE_PERMISSION_ID} from "../constants.sol";
 
 bytes4 constant SPACE_INTERFACE_ID = SpacePlugin.initialize.selector ^
     SpacePlugin.publishEdits.selector ^
-    SpacePlugin.flagContent.selector ^
     SpacePlugin.acceptSubspace.selector ^
     SpacePlugin.removeSubspace.selector;
 
@@ -15,14 +14,8 @@ bytes4 constant SPACE_INTERFACE_ID = SpacePlugin.initialize.selector ^
 contract SpacePlugin is PluginUUPSUpgradeable {
     /// @notice Emitted when the contents of a space change.
     /// @param dao The address of the DAO where this proposal was executed.
-    /// @param editsContentUri An IPFS URI pointing to the new contents behind the block's item.
-    /// @param editsMetadata The metadata associated with the new contents behind the block's item.
-    event EditsPublished(address dao, string editsContentUri, bytes editsMetadata);
-
-    /// @notice Emitted when a content is flagged.
-    /// @param dao The address of the DAO where this proposal was executed.
-    /// @param flagContentUri An IPFS URI pointing to the content being flagged.
-    event ContentFlagged(address dao, string flagContentUri);
+    /// @param contentUri An IPFS URI pointing to the new contents behind the block's item.
+    event EditsPublished(address dao, string contentUri);
 
     /// @notice Announces that the current space plugin is the successor of an already existing Space
     /// @param dao The address of the DAO where this proposal was executed.
@@ -41,13 +34,11 @@ contract SpacePlugin is PluginUUPSUpgradeable {
 
     /// @notice Initializes the plugin when build 1 is installed.
     /// @param _dao The address of the DAO to read the permissions from.
-    /// @param _firstEditsContentUri An IPFS URI pointing to the contents of the first block's item (title).
-    /// @param _firstEditsMetadata The metadata associated with the contents of the first block's item (title).
-    /// @param _predecessorSpace Optionally, the address of the space contract preceding this one.
+    /// @param _firstContentUri A IPFS URI pointing to the contents of the first block's item (title).
+    /// @param _predecessorSpace Optionally, the address of the space contract preceding this one
     function initialize(
         IDAO _dao,
-        string memory _firstEditsContentUri,
-        bytes memory _firstEditsMetadata,
+        string memory _firstContentUri,
         address _predecessorSpace
     ) external initializer {
         __PluginUUPSUpgradeable_init(_dao);
@@ -55,11 +46,7 @@ contract SpacePlugin is PluginUUPSUpgradeable {
         if (_predecessorSpace != address(0)) {
             emit SuccessorSpaceCreated(address(dao()), _predecessorSpace);
         }
-        emit EditsPublished({
-            dao: address(dao()),
-            editsContentUri: _firstEditsContentUri,
-            editsMetadata: _firstEditsMetadata
-        });
+        emit EditsPublished({dao: address(dao()), contentUri: _firstContentUri});
     }
 
     /// @notice Checks if this or the parent contract supports an interface by its ID.
@@ -72,23 +59,9 @@ contract SpacePlugin is PluginUUPSUpgradeable {
     }
 
     /// @notice Emits an event with new contents for the given block index. Caller needs CONTENT_PERMISSION.
-    /// @param _editsContentUri An IPFS URI pointing to the new contents behind the block's item.
-    /// @param _editsMetadata The metadata associated with the new contents behind the block's item.
-    function publishEdits(
-        string memory _editsContentUri,
-        bytes memory _editsMetadata
-    ) external auth(CONTENT_PERMISSION_ID) {
-        emit EditsPublished({
-            dao: address(dao()),
-            editsContentUri: _editsContentUri,
-            editsMetadata: _editsMetadata
-        });
-    }
-
-    /// @notice Emits an event when the content is flagged. Caller needs CONTENT_PERMISSION.
-    /// @param _flagContentUri An IPFS URI pointing to the content being flagged.
-    function flagContent(string memory _flagContentUri) external auth(CONTENT_PERMISSION_ID) {
-        emit ContentFlagged({dao: address(dao()), flagContentUri: _flagContentUri});
+    /// @param _contentUri An IPFS URI pointing to the new contents behind the block's item.
+    function publishEdits(string memory _contentUri) external auth(CONTENT_PERMISSION_ID) {
+        emit EditsPublished({dao: address(dao()), contentUri: _contentUri});
     }
 
     /// @notice Emits an event accepting another DAO as a subspace. Caller needs CONTENT_PERMISSION.

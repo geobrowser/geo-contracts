@@ -4,16 +4,17 @@ import {
   SpacePluginSetupParams,
 } from '../../plugin-setup-params';
 import {PluginRepo} from '../../typechain';
-import {getPluginRepoRegistryAddress} from '../../utils/helpers';
+import {osxContracts} from '../../utils/helpers';
 import {getPluginRepoInfo} from '../../utils/plugin-repo-info';
 import {PluginRepoRegistry__factory} from '@aragon/osx-ethers';
 import {PluginRepoRegistry} from '@aragon/osx-ethers';
 import {PluginRepo__factory} from '@aragon/osx-ethers';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
-import {deployments, ethers, network} from 'hardhat';
+import {deployments, ethers} from 'hardhat';
 
 async function deployAll() {
+  console.log('deploying fixture');
   await deployments.fixture();
 }
 
@@ -23,13 +24,24 @@ describe('PluginRepo Deployment', function () {
   let pluginRepo: PluginRepo;
 
   before(async () => {
-    [alice] = await ethers.getSigners();
+    console.log('before');
+    console.log(process.env.NETWORK_NAME);
+    console.log('getting signers');
+    try {
+      [alice] = await ethers.getSigners();
 
-    // Deployment should be empty
-    expect(await deployments.all()).to.be.empty;
 
-    // Deploy all contracts
-    await deployAll();
+      // Deployment should be empty
+      console.log('deployments.all()');
+      expect(await deployments.all()).to.be.empty;
+
+      // Deploy all contracts
+      console.log('deploying all');
+      await deployAll();
+    } catch (error) {
+      console.log('error', error);
+      throw error;
+    }
   });
 
   const setups = [
@@ -41,20 +53,17 @@ describe('PluginRepo Deployment', function () {
   setups.forEach(pluginSetupParams => {
     context(pluginSetupParams.PLUGIN_CONTRACT_NAME, () => {
       before(() => {
-        // plugin repo registry
-        const repoRegistryAddr: string = process.env
-          .PLUGIN_REPO_REGISTRY_ADDRESS
-          ? process.env.PLUGIN_REPO_REGISTRY_ADDRESS
-          : getPluginRepoRegistryAddress(network.name);
+        const hardhatForkNetwork = process.env.NETWORK_NAME ?? 'mainnet';
 
+        // plugin repo registry
         repoRegistry = PluginRepoRegistry__factory.connect(
-          repoRegistryAddr,
+          osxContracts[hardhatForkNetwork]['PluginRepoRegistry'],
           alice
         );
 
         const pluginRepoInfo = getPluginRepoInfo(
           pluginSetupParams.PLUGIN_REPO_ENS_NAME,
-          network.name
+          'hardhat'
         );
         if (!pluginRepoInfo) {
           throw new Error(

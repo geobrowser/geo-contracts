@@ -1,8 +1,5 @@
 # Geo Browser - Aragon OSx
 
-> [!CAUTION]
-> The code has not been audited yet—tread with caution.
-
 The following project contains the plugin smart contracts providing the foundation of the Geo Browser project. See `packages/contracts` and `packages/contracts-ethers`.
 
 ## Getting started

@@ -21,8 +21,8 @@ import {
   findEvent,
   findEventTopicLog,
   getPluginRepoFactoryAddress,
-  getPluginSetupProcessorAddress,
   hashHelpers,
+  osxContracts,
 } from '../../utils/helpers';
 import {installPlugin} from '../helpers/setup';
 import {deployTestDao} from '../helpers/test-dao';
@@ -46,6 +46,7 @@ import {expect} from 'chai';
 import {ethers, network} from 'hardhat';
 
 const release = 1;
+const hardhatForkNetwork = process.env.NETWORK_NAME ?? 'mainnet';
 const pluginSettings: MajorityVotingBase.VotingSettingsStruct = {
   duration: 60 * 60 * 24,
   supportThreshold: 1,
@@ -74,17 +75,15 @@ describe('Plugin upgrader', () => {
       [deployer, pluginUpgrader] = await ethers.getSigners();
 
       // PSP
-      const pspAddress = process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-        ? process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-        : getPluginSetupProcessorAddress(network.name, true);
-
-      psp = PluginSetupProcessor__factory.connect(pspAddress, deployer);
+      psp = PluginSetupProcessor__factory.connect(
+        osxContracts[hardhatForkNetwork]['PluginSetupProcessor'],
+        deployer
+      );
 
       // Get the PluginRepoFactory address
-      const pluginRepoFactoryAddr: string = process.env
-        .PLUGIN_REPO_FACTORY_ADDRESS
-        ? process.env.PLUGIN_REPO_FACTORY_ADDRESS
-        : getPluginRepoFactoryAddress(network.name);
+      const pluginRepoFactoryAddr: string = getPluginRepoFactoryAddress(
+        network.name
+      );
 
       const pluginRepoFactory = PluginRepoFactory__factory.connect(
         pluginRepoFactoryAddr,
@@ -485,11 +484,10 @@ describe('Plugin upgrader', () => {
       [deployer, pluginUpgrader] = await ethers.getSigners();
 
       // PSP
-      const pspAddress = process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-        ? process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-        : getPluginSetupProcessorAddress(network.name, true);
-
-      psp = PluginSetupProcessor__factory.connect(pspAddress, deployer);
+      psp = PluginSetupProcessor__factory.connect(
+        osxContracts[hardhatForkNetwork]['PluginSetupProcessor'],
+        deployer
+      );
 
       // Deploy DAO.
       dao = await deployTestDao(deployer);
@@ -502,10 +500,9 @@ describe('Plugin upgrader', () => {
       );
 
       // Get the PluginRepoFactory address
-      const pluginRepoFactoryAddr: string = process.env
-        .PLUGIN_REPO_FACTORY_ADDRESS
-        ? process.env.PLUGIN_REPO_FACTORY_ADDRESS
-        : getPluginRepoFactoryAddress(network.name);
+      const pluginRepoFactoryAddr: string = getPluginRepoFactoryAddress(
+        network.name
+      );
 
       const pluginRepoFactory = PluginRepoFactory__factory.connect(
         pluginRepoFactoryAddr,
@@ -567,8 +564,7 @@ describe('Plugin upgrader', () => {
 
       // Install build 1
       const data1 = await pSetupBuild1.encodeInstallationParams(
-        'ipfs://',
-        '0x',
+        '0x1234',
         ADDRESS_ZERO,
         pluginUpgrader.address
       );

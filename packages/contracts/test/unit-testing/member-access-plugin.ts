@@ -43,10 +43,9 @@ import {BigNumber} from 'ethers';
 import {hexlify, toUtf8Bytes} from 'ethers/lib/utils';
 import {ethers} from 'hardhat';
 
-export type InitData = {contentUri: string; metadata: string};
+export type InitData = {contentUri: string};
 export const defaultInitData: InitData = {
   contentUri: 'ipfs://',
-  metadata: '0x',
 };
 
 export const multisigInterface = new ethers.utils.Interface([
@@ -76,7 +75,7 @@ describe('Member Access Plugin', function () {
     [alice, bob, carol, dave] = signers;
     dao = await deployTestDao(alice);
 
-    defaultInput = {contentUri: 'ipfs://', metadata: '0x'};
+    defaultInput = {contentUri: 'ipfs://'};
   });
 
   beforeEach(async () => {
@@ -108,7 +107,6 @@ describe('Member Access Plugin', function () {
     await spacePlugin.initialize(
       dao.address,
       defaultInput.contentUri,
-      defaultInput.metadata,
       ADDRESS_ZERO
     );
 
@@ -982,7 +980,6 @@ describe('Member Access Plugin', function () {
           spacePlugin.initialize(
             dao.address,
             defaultInput.contentUri,
-            defaultInput.metadata,
             ADDRESS_ZERO
           )
         ).to.be.revertedWith('Initializable: contract is already initialized');

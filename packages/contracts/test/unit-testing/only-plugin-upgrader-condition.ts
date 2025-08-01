@@ -33,10 +33,7 @@ const daoInterface = DAO__factory.createInterface();
 const pspInterface = PluginSetupProcessor__factory.createInterface();
 
 describe('Only Plugin Upgrader Condition', function () {
-  const pspAddress = process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-    ? process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-    : getPluginSetupProcessorAddress(network.name, true);
-
+  let pspAddress: string;
   let alice: SignerWithAddress;
   let bob: SignerWithAddress;
   let carol: SignerWithAddress;
@@ -45,6 +42,7 @@ describe('Only Plugin Upgrader Condition', function () {
   let applyUpdateParams: PluginSetupProcessor.ApplyUpdateParamsStruct;
 
   before(async () => {
+    pspAddress = getPluginSetupProcessorAddress(network.name, true);
     [alice, bob, carol] = await ethers.getSigners();
     dao = await deployTestDao(alice);
   });

@@ -10,7 +10,7 @@ import {
   PluginRepo,
 } from '../../typechain';
 import {PluginSetupRefStruct} from '../../typechain/@aragon/osx/framework/dao/DAOFactory';
-import {getPluginSetupProcessorAddress} from '../../utils/helpers';
+import {osxContracts} from '../../utils/helpers';
 import {getPluginRepoInfo} from '../../utils/plugin-repo-info';
 import {installPlugin, uninstallPlugin} from '../helpers/setup';
 import {deployTestDao} from '../helpers/test-dao';
@@ -23,9 +23,10 @@ import {
 } from '@aragon/osx-ethers';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
-import {ethers, network} from 'hardhat';
+import {ethers} from 'hardhat';
 
 const release = 1;
+const hardhatForkNetwork = process.env.NETWORK_NAME ?? 'mainnet';
 const pluginSettings: MajorityVotingBase.VotingSettingsStruct = {
   duration: 60 * 60 * 24,
   supportThreshold: 1,
@@ -45,18 +46,17 @@ describe('GovernancePluginsSetup processing', function () {
 
     const pluginRepoInfo = getPluginRepoInfo(
       GovernancePluginsSetupParams.PLUGIN_REPO_ENS_NAME,
-      network.name
+      'hardhat'
     );
     if (!pluginRepoInfo) {
       throw new Error('The plugin setup details are not available');
     }
 
     // PSP
-    const pspAddress = process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-      ? process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
-      : getPluginSetupProcessorAddress(network.name, true);
-
-    psp = PluginSetupProcessor__factory.connect(pspAddress, deployer);
+    psp = PluginSetupProcessor__factory.connect(
+      osxContracts[hardhatForkNetwork]['PluginSetupProcessor'],
+      deployer
+    );
 
     // Deploy DAO.
     dao = await deployTestDao(deployer);
