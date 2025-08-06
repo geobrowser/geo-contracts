@@ -121,8 +121,8 @@ describe('SpaceRegistry', function () {
         .withArgs(bob.address, aliceSpaceId, aliceDaoAddress);
 
       expect(
-        await spaceRegistry.pendingHomeSpaceDAOByAddress(bob.address)
-      ).to.equal(aliceDaoAddress);
+        await spaceRegistry.pendingHomeSpaceId(bob.address)
+      ).to.equal(aliceSpaceId);
     });
 
     it('should revert when setting a home space with an invalid spaceId', async () => {
@@ -165,8 +165,8 @@ describe('SpaceRegistry', function () {
         aliceSpaceId
       );
       expect(
-        await spaceRegistry.pendingHomeSpaceDAOByAddress(bob.address)
-      ).to.equal(ZERO_ADDRESS);
+        await spaceRegistry.pendingHomeSpaceId(bob.address)
+      ).to.equal(EMPTY_BYTES16);
 
       await ethers.provider.send('hardhat_stopImpersonatingAccount', [
         aliceDaoAddress,
@@ -215,6 +215,251 @@ describe('SpaceRegistry', function () {
           .connect(alice)
           .createSpaceWithId(daoSettings, pluginSettings, spaceId)
       ).to.be.revertedWith('Ownable: caller is not the owner');
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should revert when creating a space with an already existing space ID', async () => {
+      // First create a space with a custom ID
+      const existingSpaceId = ethers.utils.formatBytes32String('existing').slice(0, 34);
+      await spaceRegistry
+        .connect(owner)
+        .createSpaceWithId(daoSettings, pluginSettings, existingSpaceId);
+
+      // Try to create another space with the same ID
+      await expect(
+        spaceRegistry
+          .connect(owner)
+          .createSpaceWithId(daoSettings, pluginSettings, existingSpaceId)
+      )
+        .to.be.revertedWithCustomError(
+          spaceRegistry,
+          'SpaceRegistrySpaceIdAlreadyExists'
+        )
+        .withArgs(existingSpaceId);
+    });
+
+    it('should revert when accepting home space with no pending request', async () => {
+      // Create a space
+      await spaceRegistry
+        .connect(alice)
+        .createSpace(daoSettings, pluginSettings, false);
+
+      const daoAddress = await mockDAOFactory.createdDAOs(0);
+
+      // Impersonate the DAO
+      await ethers.provider.send('hardhat_impersonateAccount', [daoAddress]);
+      const daoSigner = await ethers.getSigner(daoAddress);
+      await owner.sendTransaction({
+        to: daoSigner.address,
+        value: ethers.utils.parseEther('1'),
+      });
+
+      // Try to accept home space without a pending request
+      await expect(
+        spaceRegistry.connect(daoSigner).acceptHomeSpace(bob.address)
+      )
+        .to.be.revertedWithCustomError(
+          spaceRegistry,
+          'SpaceRegistryNoPendingRequest'
+        )
+        .withArgs(bob.address);
+
+      await ethers.provider.send('hardhat_stopImpersonatingAccount', [
+        daoAddress,
+      ]);
+    });
+
+    it('should revert when trying to set current home space as home space', async () => {
+      // Create a home space for alice
+      await spaceRegistry
+        .connect(alice)
+        .createSpace(daoSettings, pluginSettings, true);
+
+      const aliceDaoAddress = await mockDAOFactory.createdDAOs(0);
+      const aliceSpaceId = await spaceRegistry.generateSpaceId(aliceDaoAddress);
+
+      // Try to set the same space as home space again
+      await expect(
+        spaceRegistry.connect(alice).setHomeSpace(aliceSpaceId)
+      )
+        .to.be.revertedWithCustomError(
+          spaceRegistry,
+          'SpaceRegistryAlreadyHomeSpace'
+        )
+        .withArgs(aliceSpaceId);
+    });
+
+    it('should handle space migration with pending home space requests', async () => {
+      // Create a space
+      await spaceRegistry
+        .connect(alice)
+        .createSpace(daoSettings, pluginSettings, false);
+
+      const oldDaoAddress = await mockDAOFactory.createdDAOs(0);
+      const spaceId = await spaceRegistry.generateSpaceId(oldDaoAddress);
+
+      // Bob requests this space as home space
+      await spaceRegistry.connect(bob).setHomeSpace(spaceId);
+
+      // Verify pending request exists
+      expect(await spaceRegistry.pendingHomeSpaceId(bob.address)).to.equal(
+        spaceId
+      );
+
+      // Migrate the space
+      await ethers.provider.send('hardhat_impersonateAccount', [oldDaoAddress]);
+      const daoSigner = await ethers.getSigner(oldDaoAddress);
+      await owner.sendTransaction({
+        to: daoSigner.address,
+        value: ethers.utils.parseEther('1'),
+      });
+
+      await spaceRegistry
+        .connect(daoSigner)
+        .migrateSpace(daoSettings, pluginSettings);
+
+      const newDaoAddress = await mockDAOFactory.createdDAOs(1);
+
+      // Pending request should still exist with same space ID
+      expect(await spaceRegistry.pendingHomeSpaceId(bob.address)).to.equal(
+        spaceId
+      );
+
+      // New DAO should be able to accept the pending request
+      await ethers.provider.send('hardhat_stopImpersonatingAccount', [
+        oldDaoAddress,
+      ]);
+      await ethers.provider.send('hardhat_impersonateAccount', [newDaoAddress]);
+      const newDaoSigner = await ethers.getSigner(newDaoAddress);
+      await owner.sendTransaction({
+        to: newDaoSigner.address,
+        value: ethers.utils.parseEther('1'),
+      });
+
+      await expect(
+        spaceRegistry.connect(newDaoSigner).acceptHomeSpace(bob.address)
+      )
+        .to.emit(spaceRegistry, 'SpaceRegistryHomeSpaceSet')
+        .withArgs(bob.address, EMPTY_BYTES16, spaceId);
+
+      expect(await spaceRegistry.homeSpaceByAddress(bob.address)).to.equal(
+        spaceId
+      );
+
+      await ethers.provider.send('hardhat_stopImpersonatingAccount', [
+        newDaoAddress,
+      ]);
+    });
+
+    it('should handle multiple home space changes', async () => {
+      // Create first space
+      await spaceRegistry
+        .connect(alice)
+        .createSpace(daoSettings, pluginSettings, true);
+      const firstSpaceId = await spaceRegistry.generateSpaceId(
+        await mockDAOFactory.createdDAOs(0)
+      );
+
+      // Create second space
+      await spaceRegistry
+        .connect(alice)
+        .createSpace(daoSettings, pluginSettings, false);
+      const secondDaoAddress = await mockDAOFactory.createdDAOs(1);
+      const secondSpaceId = await spaceRegistry.generateSpaceId(secondDaoAddress);
+
+      // Request to change home space
+      await spaceRegistry.connect(alice).setHomeSpace(secondSpaceId);
+
+      // Accept the change
+      await ethers.provider.send('hardhat_impersonateAccount', [
+        secondDaoAddress,
+      ]);
+      const daoSigner = await ethers.getSigner(secondDaoAddress);
+      await owner.sendTransaction({
+        to: daoSigner.address,
+        value: ethers.utils.parseEther('1'),
+      });
+
+      await expect(
+        spaceRegistry.connect(daoSigner).acceptHomeSpace(alice.address)
+      )
+        .to.emit(spaceRegistry, 'SpaceRegistryHomeSpaceSet')
+        .withArgs(alice.address, firstSpaceId, secondSpaceId);
+
+      expect(await spaceRegistry.homeSpaceByAddress(alice.address)).to.equal(
+        secondSpaceId
+      );
+
+      await ethers.provider.send('hardhat_stopImpersonatingAccount', [
+        secondDaoAddress,
+      ]);
+    });
+
+    it('should cancel pending request when requesting a different space', async () => {
+      // Create two spaces
+      await spaceRegistry
+        .connect(alice)
+        .createSpace(daoSettings, pluginSettings, false);
+      const firstDaoAddress = await mockDAOFactory.createdDAOs(0);
+      const firstSpaceId = await spaceRegistry.generateSpaceId(firstDaoAddress);
+
+      await spaceRegistry
+        .connect(alice)
+        .createSpace(daoSettings, pluginSettings, false);
+      const secondDaoAddress = await mockDAOFactory.createdDAOs(1);
+      const secondSpaceId = await spaceRegistry.generateSpaceId(secondDaoAddress);
+
+      // Request first space as home
+      await spaceRegistry.connect(bob).setHomeSpace(firstSpaceId);
+
+      // Request second space (should overwrite first pending request)
+      await spaceRegistry.connect(bob).setHomeSpace(secondSpaceId);
+
+      // Verify only second space is pending
+      expect(await spaceRegistry.pendingHomeSpaceId(bob.address)).to.equal(
+        secondSpaceId
+      );
+
+      // First DAO should not be able to accept anymore
+      await ethers.provider.send('hardhat_impersonateAccount', [
+        firstDaoAddress,
+      ]);
+      const firstDaoSigner = await ethers.getSigner(firstDaoAddress);
+      await owner.sendTransaction({
+        to: firstDaoSigner.address,
+        value: ethers.utils.parseEther('1'),
+      });
+
+      await expect(
+        spaceRegistry.connect(firstDaoSigner).acceptHomeSpace(bob.address)
+      ).to.be.revertedWithCustomError(
+        spaceRegistry,
+        'SpaceRegistryInvalidCaller'
+      );
+
+      await ethers.provider.send('hardhat_stopImpersonatingAccount', [
+        firstDaoAddress,
+      ]);
+    });
+  });
+
+  describe('View Functions', () => {
+    it('should correctly generate space IDs', async () => {
+      const testAddress = '0x1234567890123456789012345678901234567890';
+      const spaceId = await spaceRegistry.generateSpaceId(testAddress);
+      
+      // Should be deterministic
+      const spaceId2 = await spaceRegistry.generateSpaceId(testAddress);
+      expect(spaceId).to.equal(spaceId2);
+      
+      // Should be 16 bytes
+      expect(spaceId.length).to.equal(34); // '0x' + 32 hex chars
+      
+      // Different addresses should generate different IDs
+      const differentAddress = '0x0987654321098765432109876543210987654321';
+      const differentSpaceId = await spaceRegistry.generateSpaceId(differentAddress);
+      expect(spaceId).to.not.equal(differentSpaceId);
     });
   });
 

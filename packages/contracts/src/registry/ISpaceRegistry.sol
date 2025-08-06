@@ -6,6 +6,62 @@ import { DAO } from "@aragon/osx/core/dao/DAO.sol";
 
 interface ISpaceRegistry {
 
+    // Events
+    
+    /// @notice Emitted when the SpaceRegistry is initialized
+    /// @param daoFactory The address of the DAOFactory contract
+    /// @param owner The address of the owner
+    event SpaceRegistryInitialized(address daoFactory, address owner);
+    
+    /// @notice Emitted when a new space is created
+    /// @param spaceId The unique identifier of the created space
+    /// @param dao The address of the DAO contract deployed for this space
+    /// @param creator The address that created the space
+    event SpaceRegistrySpaceCreated(bytes16 indexed spaceId, address indexed dao, address indexed creator);
+    
+    /// @notice Emitted when a user requests a space to become their home space
+    /// @param user The address of the user making the request
+    /// @param spaceId The space ID being requested as home
+    /// @param dao The current DAO address of the requested space
+    event SpaceRegistryHomeSpaceUpdatePending(address indexed user, bytes16 indexed spaceId, address indexed dao);
+    
+    /// @notice Emitted when a user's home space is updated
+    /// @param user The address of the user whose home space changed
+    /// @param previousSpaceId The previous home space ID (bytes16(0) if none)
+    /// @param newSpaceId The new home space ID
+    event SpaceRegistryHomeSpaceSet(address indexed user, bytes16 indexed previousSpaceId, bytes16 indexed newSpaceId);
+    
+    /// @notice Emitted when a space migrates from one DAO contract to another while keeping its space ID
+    /// @param spaceId The space ID that remains constant through the migration
+    /// @param oldDao The address of the previous DAO contract
+    /// @param newDao The address of the new DAO contract
+    event SpaceRegistrySpaceMigrated(bytes16 indexed spaceId, address indexed oldDao, address indexed newDao);
+
+    // Errors
+    
+    /// @notice Thrown when attempting to initialize with a zero address
+    error SpaceRegistryInvalidZeroAddress();
+    
+    /// @notice Thrown when referencing a space ID that doesn't exist
+    /// @param spaceId The invalid space ID
+    error SpaceRegistryInvalidSpaceId(bytes16 spaceId);
+    
+    /// @notice Thrown when the caller is not authorized for the operation
+    /// @param caller The unauthorized caller's address
+    error SpaceRegistryInvalidCaller(address caller);
+    
+    /// @notice Thrown when trying to create a space with a space ID that's already assigned to another DAO
+    /// @param spaceId The already existing space ID
+    error SpaceRegistrySpaceIdAlreadyExists(bytes16 spaceId);
+    
+    /// @notice Thrown when a DAO tries to accept a home space request that was never made
+    /// @param user The user address for which no pending request exists
+    error SpaceRegistryNoPendingRequest(address user);
+    
+    /// @notice Thrown when a user tries to request a space that is already their home space
+    /// @param spaceId The space ID that is already the user's home space
+    error SpaceRegistryAlreadyHomeSpace(bytes16 spaceId);
+
     /**
      * @notice Creates a new space by deploying a DAO, optionally setting it as the home space for the caller.
      * @dev see AragonOSX docs for more details on the DAOFactory.DAOSettings and DAOFactory.PluginSettings

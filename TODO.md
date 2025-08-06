@@ -1,113 +1,68 @@
-# SpaceRegistry Refactoring Plan
+# SpaceRegistry Improvement Plan
 
 ## Overview
-This plan outlines the changes needed to:
-1. Rename "main personal space" to "home space" throughout the codebase
-2. Add space migration functionality
+This plan outlines improvements to the SpaceRegistry contract based on test coverage analysis and edge case handling.
 
-## Task 0: Rebase on latest dev branch
-- Fetch the latest `dev` branch from origin
-- Rebase the current branch (`pcv/space-factory`) on top of `dev`
-- Resolve any merge conflicts that arise
-- The dev branch contains fixes for running tests locally
+## Task 1: Add Edge Case Handling
 
-## Task 1: Rename "main personal space" to "home space"
+### 1.1 Prevent duplicate space ID creation in `createSpaceWithId`
+- Add check: if space ID already exists, revert with `SpaceRegistrySpaceIdAlreadyExists(bytes16 spaceId)`
+- Add test case for this scenario
 
-### Variables to rename:
-- `mainPersonalSpaceByAddress` → `homeSpaceByAddress`
-- `pendingMainPersonalSpaceDAOByAddress` → `pendingHomeSpaceDAOByAddress`
-- `_isMainPersonalSpace` parameter → `_isHomeSpace`
-- `previousMainPersonalSpace` local variable → `previousHomeSpace`
+### 1.2 Handle missing pending request in `acceptHomeSpace`
+- Add explicit check for address(0) pending request
+- Revert with `SpaceRegistryNoPendingRequest(address user)`
+- Add test case for this scenario
 
-### Functions to rename:
-- `setMainPersonalSpace()` → `setHomeSpace()`
-- `acceptMainPersonalSpace()` → `acceptHomeSpace()`
+### 1.3 Prevent redundant home space setting
+- Check if requested space is already the user's home space
+- Revert with `SpaceRegistryAlreadyHomeSpace(bytes16 spaceId)`
+- Add test case for this scenario
 
-### Events to rename:
-- `SpaceRegistryMainPersonalSpaceUpdatePending` → `SpaceRegistryHomeSpaceUpdatePending`
-- `SpaceRegistryMainPersonalSpaceSet` → `SpaceRegistryHomeSpaceSet`
+### 1.4 Track pending home space requests by space ID
+- Change `pendingHomeSpaceDAOByAddress` mapping to `pendingHomeSpaceId`
+- Store space ID instead of DAO address
+- This ensures pending requests survive space migrations
+- Update `setHomeSpace` and `acceptHomeSpace` logic accordingly
+- Add test case for migration with pending requests
 
-### Documentation updates:
-- Update all comments and NatSpec documentation to use "home space" terminology
-
-## Task 2: Add space migration functionality
-
-### New function: `migrateSpace()`
+## Task 2: Add New Error Definitions
 ```solidity
-function migrateSpace(
-    DAOFactory.DAOSettings calldata _daoSettings,
-    DAOFactory.PluginSettings[] calldata _pluginSettings
-) external returns (DAO newDao);
+error SpaceRegistrySpaceIdAlreadyExists(bytes16 spaceId);
+error SpaceRegistryNoPendingRequest(address user);
+error SpaceRegistryAlreadyHomeSpace(bytes16 spaceId);
 ```
 
-#### Requirements:
-- Only callable by the DAO itself (msg.sender must be an existing DAO in the registry)
-- Retrieves the space ID associated with the calling DAO
-- Creates a new DAO with the provided settings
-- Updates mappings to point the space ID to the new DAO
-- Removes the old DAO from the reverse mapping
-- Preserves home space associations if applicable
+## Task 3: Update Contract Implementation
+- Implement edge case handling in SpaceRegistry.sol
+- Update the mapping structure for pending requests
+- Ensure all error conditions are properly handled
 
-### New event:
-```solidity
-event SpaceRegistrySpaceMigrated(
-    bytes16 indexed spaceId,
-    address indexed oldDao,
-    address indexed newDao
-);
-```
+## Task 4: Add Comprehensive Tests
+- Test for duplicate space ID in `createSpaceWithId`
+- Test for accepting non-existent home space request
+- Test for setting current home space as home space
+- Test for space migration with pending home space requests
+- Test for multiple home space changes by a user
+- Test for canceling pending requests by requesting different space
+- Add explicit test for `generateSpaceId` function
 
-### Interface update:
-Add the `migrateSpace` function signature to `ISpaceRegistry.sol`
+## Task 5: Documentation Updates
+- Update NatSpec comments to reflect new error conditions
+- Document the behavior of pending requests during migration
+- Update interface documentation if needed
 
 ## Implementation Order:
-1. Fetch and rebase on latest dev branch
-2. Update interface first (ISpaceRegistry.sol)
-3. Rename all "main personal space" references to "home space"
-4. Implement the migrateSpace function
-5. Update tests to reflect new naming and functionality
-6. Ensure compilation and all tests pass
-7. Create/modify deployment scripts for SpaceRegistry
-8. Update README.md with SpaceRegistry documentation
-9. Update README_DEPLOYMENT.md with deployment instructions
+1. Add new error definitions to SpaceRegistry.sol
+2. Update the pending request tracking mechanism
+3. Implement edge case handling in the contract
+4. Write comprehensive tests for all edge cases
+5. Run tests and fix any issues
+6. Update documentation
 
-## Task 3: Update deployment infrastructure ✅
-
-### Deployment script:
-- ✅ Create or modify deployment scripts to deploy SpaceRegistry independently
-- ✅ Ensure the script can be run separately from other contract deployments
-- ✅ Configure proper initialization parameters (owner, DAOFactory address)
-- ✅ Created management scripts for post-deployment tasks
-
-## Task 4: Update documentation
-
-### README.md updates:
-- Add a section explaining the SpaceRegistry contract
-- Document the concept of spaces and home spaces
-- Explain the space creation and migration process
-- Include usage examples
-
-### README_DEPLOYMENT.md updates:
-- Add deployment instructions for SpaceRegistry
-- Include required environment variables and parameters
-- Document the deployment order and dependencies
-- Add verification steps for successful deployment
-
-## Task 5: Run tests
-
-### Prerequisites:
-- Fix yarn install issue (environment configuration for Geo chain)
-- Ensure proper .env setup
-
-### Testing steps:
-- Run `yarn install` successfully
-- Run `yarn build` in packages/contracts
-- Run `yarn test` to execute all tests
-- Verify SpaceRegistry tests pass
-- Fix any compilation or test failures
-
-## Testing Considerations:
-- Test that only DAOs can call migrateSpace
-- Test that space ID is preserved during migration
-- Test that home space associations are maintained
-- Test error cases (non-existent DAO, etc.)
+## Previous Completed Tasks:
+- ✅ Rebase on latest dev branch
+- ✅ Rename "main personal space" to "home space" 
+- ✅ Add space migration functionality
+- ✅ Update deployment infrastructure
+- ✅ Run initial tests
