@@ -30,17 +30,11 @@ describe('SpaceRegistry', function () {
   const pluginSettings: DAOFactory.PluginSettingsStruct[] = [];
 
   beforeEach(async () => {
-    console.log('beforeEach');
-    console.log(process.env.NETWORK_NAME);
-    console.log('getting signers');
     [owner, alice, bob] = await ethers.getSigners();
-    console.log('deploying mockDAOFactory');
     mockDAOFactory = await new MockDAOFactory__factory(owner).deploy();
-    console.log('deploying spaceRegistry');
     spaceRegistry = await deployWithProxy<SpaceRegistry>(
       new SpaceRegistry__factory(owner)
     );
-    console.log('initializing spaceRegistry');
     await spaceRegistry.initialize(owner.address, mockDAOFactory.address);
   });
 
@@ -233,7 +227,7 @@ describe('SpaceRegistry', function () {
       await spaceRegistry
         .connect(alice)
         .createSpace(daoSettings, pluginSettings, false);
-      
+
       oldDaoAddress = await mockDAOFactory.createdDAOs(0);
       spaceId = await spaceRegistry.generateSpaceId(oldDaoAddress);
     });
@@ -260,7 +254,7 @@ describe('SpaceRegistry', function () {
       expect(await spaceRegistry.spacesByDAOAddress(newDaoAddress)).to.equal(
         spaceId
       );
-      
+
       // Check that the old DAO is no longer associated with any space
       expect(await spaceRegistry.spacesByDAOAddress(oldDaoAddress)).to.equal(
         EMPTY_BYTES16
@@ -278,7 +272,7 @@ describe('SpaceRegistry', function () {
     it('should preserve home space associations during migration', async () => {
       // Set this space as home space for alice
       await spaceRegistry.connect(alice).setHomeSpace(spaceId);
-      
+
       // Impersonate the DAO to accept
       await ethers.provider.send('hardhat_impersonateAccount', [oldDaoAddress]);
       const daoSigner = await ethers.getSigner(oldDaoAddress);
@@ -286,14 +280,14 @@ describe('SpaceRegistry', function () {
         to: daoSigner.address,
         value: ethers.utils.parseEther('1'),
       });
-      
+
       await spaceRegistry.connect(daoSigner).acceptHomeSpace(alice.address);
-      
+
       // Now migrate the space
       await spaceRegistry
         .connect(daoSigner)
         .migrateSpace(daoSettings, pluginSettings);
-      
+
       // Home space association should still point to the same space ID
       expect(await spaceRegistry.homeSpaceByAddress(alice.address)).to.equal(
         spaceId

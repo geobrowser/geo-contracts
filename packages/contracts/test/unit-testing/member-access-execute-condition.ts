@@ -26,7 +26,9 @@ const daoInterface = DAO__factory.createInterface();
 const mainVotingPluginInterface = MainVotingPlugin__factory.createInterface();
 
 describe('Member Access Condition', function () {
-  let pspAddress: string;
+  const pspAddress = process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
+    ? process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
+    : getPluginSetupProcessorAddress(network.name, true);
 
   let alice: SignerWithAddress;
   let bob: SignerWithAddress;
@@ -35,7 +37,6 @@ describe('Member Access Condition', function () {
   let memberAccessExecuteCondition: MemberAccessExecuteCondition;
 
   before(async () => {
-    pspAddress = getPluginSetupProcessorAddress(network.name, true);
     [alice, bob, carol] = await ethers.getSigners();
     dao = await deployTestDao(alice);
   });
