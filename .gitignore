@@ -9,6 +9,7 @@ coverage
 dist
 node_modules
 typechain
+.yarn/
 
 packages/subgraph/imported
 packages/subgraph/generated
