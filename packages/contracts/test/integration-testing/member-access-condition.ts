@@ -38,6 +38,7 @@ describe('Member Access Condition E2E', () => {
   let deployer: SignerWithAddress;
   let pluginUpgrader: SignerWithAddress;
   let alice: SignerWithAddress;
+  let bob: SignerWithAddress;
 
   let psp: PluginSetupProcessor;
   let dao: DAO;
@@ -50,7 +51,7 @@ describe('Member Access Condition E2E', () => {
   // let memberAccessPlugin: MemberAccessPlugin;
 
   before(async () => {
-    [deployer, pluginUpgrader, alice] = await ethers.getSigners();
+    [deployer, pluginUpgrader, alice, bob] = await ethers.getSigners();
 
     // Get the PluginRepoFactory address
     const pluginRepoFactoryAddr: string = process.env
@@ -127,10 +128,14 @@ describe('Member Access Condition E2E', () => {
       ethers.utils.id('APPLY_INSTALLATION_PERMISSION')
     );
 
+    const initialEditors = [deployer.address];
+    const initialMembers = [alice.address];
+
     // Install plugin
     const data = await pluginSetup.encodeInstallationParams(
       pluginSettings,
-      [deployer.address],
+      initialEditors,
+      initialMembers,
       memberAccessProposalDuration,
       pluginUpgrader.address
     );
@@ -148,12 +153,13 @@ describe('Member Access Condition E2E', () => {
   });
 
   it('Executing a proposal to add membership works', async () => {
-    expect(await mainVotingPlugin.isMember(alice.address)).to.eq(false);
+    expect(await mainVotingPlugin.isMember(alice.address)).to.eq(true);
+    expect(await mainVotingPlugin.isMember(bob.address)).to.eq(false);
     expect(await mainVotingPlugin.isEditor(deployer.address)).to.eq(true);
 
-    await expect(mainVotingPlugin.proposeAddMember('0x', alice.address)).to.not
-      .be.reverted;
+    await expect(mainVotingPlugin.proposeAddMember('0x', bob.address)).to.not.be
+      .reverted;
 
-    expect(await mainVotingPlugin.isMember(alice.address)).to.eq(true);
+    expect(await mainVotingPlugin.isMember(bob.address)).to.eq(true);
   });
 });

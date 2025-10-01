@@ -35,13 +35,14 @@ const minMemberAccessProposalDuration = 60 * 60 * 24;
 
 describe('GovernancePluginsSetup processing', function () {
   let deployer: SignerWithAddress;
+  let alice: SignerWithAddress;
 
   let psp: PluginSetupProcessor;
   let dao: DAO;
   let pluginRepo: PluginRepo;
 
   before(async () => {
-    [deployer] = await ethers.getSigners();
+    [deployer, alice] = await ethers.getSigners();
 
     const pluginRepoInfo = getPluginRepoInfo(
       GovernancePluginsSetupParams.PLUGIN_REPO_ENS_NAME,
@@ -109,10 +110,14 @@ describe('GovernancePluginsSetup processing', function () {
     });
 
     beforeEach(async () => {
+      const initialEditors = [deployer.address];
+      const initialMembers = [alice.address];
+
       // Install build 1.
       const data = await setup.encodeInstallationParams(
         pluginSettings,
-        [deployer.address],
+        initialEditors,
+        initialMembers,
         minMemberAccessProposalDuration,
         pluginUpgrader
       );

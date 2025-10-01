@@ -6,6 +6,11 @@ pragma solidity ^0.8.8;
 /// @author Aragon X - 2024
 /// @notice An interface to be implemented by DAO plugins that define membership.
 interface IMembers {
+    /// @notice Emitted when members are added to the DAO plugin.
+    /// @param dao The address of the DAO whose plugin has added members.
+    /// @param members The addresses of the new members.
+    event MembersAdded(address dao, address[] members);
+
     /// @notice Emitted when a member is added to the DAO plugin.
     /// @param dao The address of the DAO whose plugin has added a member.
     /// @param member The address of the new member being added.

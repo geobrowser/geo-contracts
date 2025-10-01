@@ -9,7 +9,7 @@ import {IDAO} from "@aragon/osx/core/dao/IDAO.sol";
 import {DAO} from "@aragon/osx/core/dao/DAO.sol";
 import {PermissionLib} from "@aragon/osx/core/permission/PermissionLib.sol";
 import {PersonalSpaceAdminPlugin} from "./PersonalSpaceAdminPlugin.sol";
-import {EDITOR_PERMISSION_ID} from "../constants.sol";
+import {EDITOR_PERMISSION_ID, MEMBER_PERMISSION_ID} from "../constants.sol";
 
 /// @title PersonalSpaceAdminPluginSetup
 /// @author Aragon - 2023
@@ -20,15 +20,7 @@ contract PersonalSpaceAdminPluginSetup is PluginSetup {
     /// @notice The address of the `PersonalSpaceAdminPlugin` plugin logic contract to be cloned.
     address private immutable implementation_;
 
-    event GeoPersonalAdminPluginCreated(
-        address dao,
-        address personalAdminPlugin,
-        address initialEditor
-    );
-
-    /// @notice Thrown if the editor address is zero.
-    /// @param editor The initial editor address.
-    error EditorAddressInvalid(address editor);
+    event GeoPersonalAdminPluginCreated(address dao, address personalAdminPlugin);
 
     /// @notice The constructor setting the `PersonalSpaceAdminPlugin` implementation contract to clone from.
     constructor() {
@@ -41,33 +33,48 @@ contract PersonalSpaceAdminPluginSetup is PluginSetup {
         bytes calldata _data
     ) external returns (address plugin, PreparedSetupData memory preparedSetupData) {
         // Decode `_data` to extract the params needed for cloning and initializing the `PersonalSpaceAdminPlugin` plugin.
-        address editor = decodeInstallationParams(_data);
-
-        if (editor == address(0)) {
-            revert EditorAddressInvalid({editor: editor});
-        }
+        (
+            address[] memory initialEditors,
+            address[] memory initialMembers
+        ) = decodeInstallationParams(_data);
 
         // Clone plugin contract.
         plugin = implementation_.clone();
 
         // Initialize cloned plugin contract.
-        PersonalSpaceAdminPlugin(plugin).initialize(IDAO(_dao), editor);
+        PersonalSpaceAdminPlugin(plugin).initialize(IDAO(_dao), initialEditors, initialMembers);
 
         // Prepare permissions
+        uint256 initialEditorsLength = initialEditors.length;
+        uint256 initialMembersLength = initialMembers.length;
+        uint256 permissionsLength = initialEditorsLength + initialMembersLength + 1;
         PermissionLib.MultiTargetPermission[]
-            memory permissions = new PermissionLib.MultiTargetPermission[](2);
+            memory permissions = new PermissionLib.MultiTargetPermission[](permissionsLength);
 
-        // Grant `EDITOR_PERMISSION` of the plugin to the editor.
-        permissions[0] = PermissionLib.MultiTargetPermission(
-            PermissionLib.Operation.Grant,
-            plugin,
-            editor,
-            PermissionLib.NO_CONDITION,
-            EDITOR_PERMISSION_ID
-        );
+        // Grant `EDITOR_PERMISSION` of the plugin to the initial editors.
+        for (uint256 i; i < initialEditorsLength; ++i) {
+            permissions[i] = PermissionLib.MultiTargetPermission(
+                PermissionLib.Operation.Grant,
+                plugin,
+                initialEditors[i],
+                PermissionLib.NO_CONDITION,
+                EDITOR_PERMISSION_ID
+            );
+        }
+
+        // Grant `MEMBER_PERMISSION` of the plugin to the initial members.
+        for (uint256 j; j < initialMembersLength; ++j) {
+            permissions[initialEditorsLength + j] = PermissionLib.MultiTargetPermission(
+                PermissionLib.Operation.Grant,
+                plugin,
+                initialMembers[j],
+                PermissionLib.NO_CONDITION,
+                MEMBER_PERMISSION_ID
+            );
+        }
 
         // Grant `EXECUTE_PERMISSION` on the DAO to the plugin.
-        permissions[1] = PermissionLib.MultiTargetPermission(
+        permissions[permissionsLength - 1] = PermissionLib.MultiTargetPermission(
             PermissionLib.Operation.Grant,
             _dao,
             plugin,
@@ -77,11 +84,11 @@ contract PersonalSpaceAdminPluginSetup is PluginSetup {
 
         preparedSetupData.permissions = permissions;
 
-        emit GeoPersonalAdminPluginCreated(_dao, plugin, editor);
+        emit GeoPersonalAdminPluginCreated(_dao, plugin);
     }
 
     /// @inheritdoc IPluginSetup
-    /// @dev There is no reliable way to revoke `EDITOR_PERMISSION_ID` from all addresses it has been granted to. Removing `EXECUTE_PERMISSION_ID` only, as being an editor or a member is useless without EXECUTE.
+    /// @dev There is no reliable way to revoke `EDITOR_PERMISSION_ID` or `MEMBER_PERMISSION_ID` from all addresses it has been granted to. Removing `EXECUTE_PERMISSION_ID` only, as being an editor or a member is useless without EXECUTE.
     function prepareUninstallation(
         address _dao,
         SetupPayload calldata _payload
@@ -105,14 +112,17 @@ contract PersonalSpaceAdminPluginSetup is PluginSetup {
     }
 
     /// @notice Encodes the given installation parameters into a byte array
-    function encodeInstallationParams(address _initialEditor) public pure returns (bytes memory) {
-        return abi.encode(_initialEditor);
+    function encodeInstallationParams(
+        address[] calldata _initialEditors,
+        address[] calldata _initialMembers
+    ) public pure returns (bytes memory) {
+        return abi.encode(_initialEditors, _initialMembers);
     }
 
     /// @notice Decodes the given byte array into the original installation parameters
     function decodeInstallationParams(
         bytes memory _data
-    ) public pure returns (address initialEditor) {
-        (initialEditor) = abi.decode(_data, (address));
+    ) public pure returns (address[] memory initialEditors, address[] memory initialMembers) {
+        (initialEditors, initialMembers) = abi.decode(_data, (address[], address[]));
     }
 }

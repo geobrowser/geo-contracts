@@ -74,7 +74,7 @@ There's an optional feature, where a predefined address can execute the actions 
 
 ### Space genesis
 
-1. When the `MainVotingPlugin` is installed, an initial editor is defined
+1. When the `MainVotingPlugin` is installed, the initial editors and the initial members are defined
 
 ### Joining a space
 
@@ -411,7 +411,9 @@ The governance settings need to be defined when the plugin is deployed but the D
 function initialize(
   IDAO _dao,
   VotingSettings calldata _votingSettings,
-  address[] calldata _initialEditors
+  address[] calldata _initialEditors,
+  address[] calldata _initialMembers,
+  MemberAccessPlugin _memberAccessPlugin
 );
 
 function addEditor(address);
@@ -527,14 +529,18 @@ event VotingSettingsUpdated(VotingMode votingMode, uint32 supportThreshold, uint
 
 ### Personal Space Admin Plugin
 
-Governance plugin providing the default implementation for personal spaces, where addresses with editor permissioin can apply proposals right away. It is a adapted version of Aragon's [Admin plugin](https://github.com/aragon/osx/blob/develop/packages/contracts/src/plugins/governance/admin/Admin.sol).
+Governance plugin providing the default implementation for personal spaces, where addresses with editor permission can apply proposals right away. It is an adapted version of Aragon's [Admin plugin](https://github.com/aragon/osx/blob/develop/packages/contracts/src/plugins/governance/admin/Admin.sol).
 
-Since this plugin has the power to unilaterally perform actions, it is not upgradeable. Adding many editors is possible via proposals with a grant/revoke action.
+Since this plugin has the power to unilaterally perform actions, it is not upgradeable. Adding many editors or members is possible during initialization or via proposals with a grant/revoke action.
 
 #### Methods
 
 ```solidity
-function initialize(IDAO _dao);
+function initialize(
+  IDAO _dao,
+  address[] calldata _initialEditors,
+  address[] calldata _initialMembers
+);
 
 function executeProposal(
   bytes calldata _metadata,

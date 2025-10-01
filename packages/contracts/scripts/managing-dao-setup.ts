@@ -50,6 +50,9 @@ const MGMT_DAO_PROPOSAL_SUPPORT_THRESHOLD =
 const MGMT_DAO_INITIAL_EDITORS = process.env.MGMT_DAO_INITIAL_EDITORS
   ? process.env.MGMT_DAO_INITIAL_EDITORS.split(',')
   : ([] as string[]);
+const MGMT_DAO_INITIAL_MEMBERS = process.env.MGMT_DAO_INITIAL_MEMBERS
+  ? process.env.MGMT_DAO_INITIAL_MEMBERS.split(',')
+  : ([] as string[]);
 
 const rollupProvider = new providers.JsonRpcProvider(DEPLOYMENT_RPC_ENDPOINT);
 
@@ -153,6 +156,7 @@ async function prepareInstallation() {
   const installData = await pluginSetup.encodeInstallationParams(
     settings,
     MGMT_DAO_INITIAL_EDITORS,
+    MGMT_DAO_INITIAL_MEMBERS,
     memberAccessProposalDuration,
     pluginUpgrader
   );

@@ -8,6 +8,7 @@ import {getPluginSetupProcessorAddress} from '../../utils/helpers';
 import {deployTestDao} from '../helpers/test-dao';
 import {Operation} from '../helpers/types';
 import {
+  ADDRESS_ONE,
   ADDRESS_ZERO,
   EXECUTE_PERMISSION_ID,
   NO_CONDITION,
@@ -25,11 +26,13 @@ import {ethers, network} from 'hardhat';
 describe('Governance Plugins Setup', function () {
   let alice: SignerWithAddress;
   let bob: SignerWithAddress;
+  let carol: SignerWithAddress;
+  let dave: SignerWithAddress;
   let governancePluginsSetup: GovernancePluginsSetup;
   let dao: DAO;
 
   before(async () => {
-    [alice, bob] = await ethers.getSigners();
+    [alice, bob, carol, dave] = await ethers.getSigners();
     dao = await deployTestDao(alice);
 
     const pspAddress = process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
@@ -44,6 +47,8 @@ describe('Governance Plugins Setup', function () {
   describe('prepareInstallation', async () => {
     it('returns the plugin, helpers, and permissions (no pluginUpgrader)', async () => {
       const pluginUpgrader = ADDRESS_ZERO;
+      const initialEditors = [alice.address, bob.address];
+      const initialMembers = [carol.address, dave.address];
 
       const initData = await governancePluginsSetup.encodeInstallationParams(
         {
@@ -51,7 +56,8 @@ describe('Governance Plugins Setup', function () {
           supportThreshold: pctToRatio(25),
           duration: 60 * 60 * 24 * 5,
         },
-        [alice.address],
+        initialEditors,
+        initialMembers,
         60 * 60 * 24,
         pluginUpgrader
       );
@@ -140,10 +146,19 @@ describe('Governance Plugins Setup', function () {
       // initialization is correct
       expect(await myPlugin.dao()).to.eq(dao.address);
       expect(await myPlugin.isEditor(alice.address)).to.be.true;
+      expect(await myPlugin.isEditor(bob.address)).to.be.true;
+      expect(await myPlugin.isEditor(carol.address)).to.be.false;
+      expect(await myPlugin.isEditor(dave.address)).to.be.false;
+      expect(await myPlugin.isMember(alice.address)).to.be.true;
+      expect(await myPlugin.isMember(bob.address)).to.be.true;
+      expect(await myPlugin.isMember(carol.address)).to.be.true;
+      expect(await myPlugin.isMember(dave.address)).to.be.true;
     });
 
     it('returns the plugin, helpers, and permissions (with a pluginUpgrader)', async () => {
-      const pluginUpgrader = bob.address;
+      const pluginUpgrader = ADDRESS_ONE;
+      const initialEditors = [alice.address, bob.address];
+      const initialMembers = [carol.address, dave.address];
 
       // Params: (MajorityVotingBase.VotingSettings, address, address)
       const initData = await governancePluginsSetup.encodeInstallationParams(
@@ -152,7 +167,8 @@ describe('Governance Plugins Setup', function () {
           supportThreshold: pctToRatio(25),
           duration: 60 * 60 * 24 * 5,
         },
-        [alice.address],
+        initialEditors,
+        initialMembers,
         60 * 60 * 24,
         pluginUpgrader
       );
@@ -253,6 +269,13 @@ describe('Governance Plugins Setup', function () {
       // initialization is correct
       expect(await myPlugin.dao()).to.eq(dao.address);
       expect(await myPlugin.isEditor(alice.address)).to.be.true;
+      expect(await myPlugin.isEditor(bob.address)).to.be.true;
+      expect(await myPlugin.isEditor(carol.address)).to.be.false;
+      expect(await myPlugin.isEditor(dave.address)).to.be.false;
+      expect(await myPlugin.isMember(alice.address)).to.be.true;
+      expect(await myPlugin.isMember(bob.address)).to.be.true;
+      expect(await myPlugin.isMember(carol.address)).to.be.true;
+      expect(await myPlugin.isMember(dave.address)).to.be.true;
     });
   });
 
@@ -333,7 +356,7 @@ describe('Governance Plugins Setup', function () {
         alice
       ).deploy();
 
-      const pluginUpgrader = bob.address;
+      const pluginUpgrader = ADDRESS_ONE;
       const uninstallData =
         await governancePluginsSetup.encodeUninstallationParams(pluginUpgrader);
       const permissions =
