@@ -5,12 +5,14 @@ This directory contains Hardhat tasks for managing the SpaceRegistry contract. T
 ## Available Tasks
 
 ### 1. Check Registry State
+
 ```bash
 # Basic registry info and your home space
 npx hardhat space-registry:check --registry 0x... --network sepolia
 ```
 
 ### 2. Create Space with Specific ID (Owner only)
+
 ```bash
 npx hardhat space-registry:create-with-id \
   --registry 0x... \
@@ -21,6 +23,7 @@ npx hardhat space-registry:create-with-id \
 ```
 
 ### 3. Transfer Ownership (Owner only)
+
 ```bash
 # Simulate first (default)
 npx hardhat space-registry:transfer-ownership \
@@ -37,6 +40,7 @@ npx hardhat space-registry:transfer-ownership \
 ```
 
 ### 4. Upgrade Registry Implementation (Owner only)
+
 ```bash
 # Simulate first (default)
 npx hardhat space-registry:upgrade \
@@ -55,6 +59,7 @@ npx hardhat space-registry:upgrade \
 ## Task Parameters
 
 All tasks use proper parameter parsing:
+
 - Required parameters will error if not provided
 - Optional parameters have sensible defaults
 - Boolean flags like `--execute` are false by default

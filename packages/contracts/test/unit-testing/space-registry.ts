@@ -92,9 +92,9 @@ describe('SpaceRegistry', function () {
       const createdDaoAddr = await mockDAOFactory.createdDAOs(0);
       const spaceId = await spaceRegistry.generateSpaceId(createdDaoAddr);
 
-      expect(
-        await spaceRegistry.homeSpaceByAddress(alice.address)
-      ).to.equal(spaceId);
+      expect(await spaceRegistry.homeSpaceByAddress(alice.address)).to.equal(
+        spaceId
+      );
 
       await expect(tx)
         .to.emit(spaceRegistry, 'SpaceRegistryHomeSpaceSet')
@@ -120,18 +120,18 @@ describe('SpaceRegistry', function () {
         .to.emit(spaceRegistry, 'SpaceRegistryHomeSpaceUpdatePending')
         .withArgs(bob.address, aliceSpaceId, aliceDaoAddress);
 
-      expect(
-        await spaceRegistry.pendingHomeSpaceId(bob.address)
-      ).to.equal(aliceSpaceId);
+      expect(await spaceRegistry.pendingHomeSpaceId(bob.address)).to.equal(
+        aliceSpaceId
+      );
     });
 
     it('should revert when setting a home space with an invalid spaceId', async () => {
       // This does not correlate to a space that was created so
       // it should revert
-      const invalidSpaceId = ethers.utils.formatBytes32String('invalid').slice(0, 34);
-      await expect(
-        spaceRegistry.connect(bob).setHomeSpace(invalidSpaceId)
-      )
+      const invalidSpaceId = ethers.utils
+        .formatBytes32String('invalid')
+        .slice(0, 34);
+      await expect(spaceRegistry.connect(bob).setHomeSpace(invalidSpaceId))
         .to.be.revertedWithCustomError(
           spaceRegistry,
           'SpaceRegistryInvalidSpaceId'
@@ -152,8 +152,9 @@ describe('SpaceRegistry', function () {
         value: ethers.utils.parseEther('1'),
       }); // Give it some gas money
 
-      const previousHomeSpace =
-        await spaceRegistry.homeSpaceByAddress(bob.address);
+      const previousHomeSpace = await spaceRegistry.homeSpaceByAddress(
+        bob.address
+      );
 
       await expect(
         spaceRegistry.connect(daoSigner).acceptHomeSpace(bob.address)
@@ -164,9 +165,9 @@ describe('SpaceRegistry', function () {
       expect(await spaceRegistry.homeSpaceByAddress(bob.address)).to.equal(
         aliceSpaceId
       );
-      expect(
-        await spaceRegistry.pendingHomeSpaceId(bob.address)
-      ).to.equal(EMPTY_BYTES16);
+      expect(await spaceRegistry.pendingHomeSpaceId(bob.address)).to.equal(
+        EMPTY_BYTES16
+      );
 
       await ethers.provider.send('hardhat_stopImpersonatingAccount', [
         aliceDaoAddress,
@@ -176,9 +177,7 @@ describe('SpaceRegistry', function () {
     it('should revert if a non-DAO address tries to accept the home space request', async () => {
       await spaceRegistry.connect(bob).setHomeSpace(aliceSpaceId);
 
-      await expect(
-        spaceRegistry.connect(alice).acceptHomeSpace(bob.address)
-      )
+      await expect(spaceRegistry.connect(alice).acceptHomeSpace(bob.address))
         .to.be.revertedWithCustomError(
           spaceRegistry,
           'SpaceRegistryInvalidCaller'
@@ -189,7 +188,9 @@ describe('SpaceRegistry', function () {
 
   describe('Owner-only functions', () => {
     it('should allow the owner to create a space with a specific ID', async () => {
-      const spaceId = ethers.utils.formatBytes32String('my-custom-space').slice(0, 34);
+      const spaceId = ethers.utils
+        .formatBytes32String('my-custom-space')
+        .slice(0, 34);
       const tx = await spaceRegistry
         .connect(owner)
         .createSpaceWithId(daoSettings, pluginSettings, spaceId);
@@ -209,7 +210,9 @@ describe('SpaceRegistry', function () {
     });
 
     it('should revert if a non-owner tries to create a space with a specific ID', async () => {
-      const spaceId = ethers.utils.formatBytes32String('my-custom-space').slice(0, 34);
+      const spaceId = ethers.utils
+        .formatBytes32String('my-custom-space')
+        .slice(0, 34);
       await expect(
         spaceRegistry
           .connect(alice)
@@ -221,7 +224,9 @@ describe('SpaceRegistry', function () {
   describe('Edge Cases', () => {
     it('should revert when creating a space with an already existing space ID', async () => {
       // First create a space with a custom ID
-      const existingSpaceId = ethers.utils.formatBytes32String('existing').slice(0, 34);
+      const existingSpaceId = ethers.utils
+        .formatBytes32String('existing')
+        .slice(0, 34);
       await spaceRegistry
         .connect(owner)
         .createSpaceWithId(daoSettings, pluginSettings, existingSpaceId);
@@ -280,9 +285,7 @@ describe('SpaceRegistry', function () {
       const aliceSpaceId = await spaceRegistry.generateSpaceId(aliceDaoAddress);
 
       // Try to set the same space as home space again
-      await expect(
-        spaceRegistry.connect(alice).setHomeSpace(aliceSpaceId)
-      )
+      await expect(spaceRegistry.connect(alice).setHomeSpace(aliceSpaceId))
         .to.be.revertedWithCustomError(
           spaceRegistry,
           'SpaceRegistryAlreadyHomeSpace'
@@ -366,7 +369,9 @@ describe('SpaceRegistry', function () {
         .connect(alice)
         .createSpace(daoSettings, pluginSettings, false);
       const secondDaoAddress = await mockDAOFactory.createdDAOs(1);
-      const secondSpaceId = await spaceRegistry.generateSpaceId(secondDaoAddress);
+      const secondSpaceId = await spaceRegistry.generateSpaceId(
+        secondDaoAddress
+      );
 
       // Request to change home space
       await spaceRegistry.connect(alice).setHomeSpace(secondSpaceId);
@@ -408,7 +413,9 @@ describe('SpaceRegistry', function () {
         .connect(alice)
         .createSpace(daoSettings, pluginSettings, false);
       const secondDaoAddress = await mockDAOFactory.createdDAOs(1);
-      const secondSpaceId = await spaceRegistry.generateSpaceId(secondDaoAddress);
+      const secondSpaceId = await spaceRegistry.generateSpaceId(
+        secondDaoAddress
+      );
 
       // Request first space as home
       await spaceRegistry.connect(bob).setHomeSpace(firstSpaceId);
@@ -448,17 +455,19 @@ describe('SpaceRegistry', function () {
     it('should correctly generate space IDs', async () => {
       const testAddress = '0x1234567890123456789012345678901234567890';
       const spaceId = await spaceRegistry.generateSpaceId(testAddress);
-      
+
       // Should be deterministic
       const spaceId2 = await spaceRegistry.generateSpaceId(testAddress);
       expect(spaceId).to.equal(spaceId2);
-      
+
       // Should be 16 bytes
       expect(spaceId.length).to.equal(34); // '0x' + 32 hex chars
-      
+
       // Different addresses should generate different IDs
       const differentAddress = '0x0987654321098765432109876543210987654321';
-      const differentSpaceId = await spaceRegistry.generateSpaceId(differentAddress);
+      const differentSpaceId = await spaceRegistry.generateSpaceId(
+        differentAddress
+      );
       expect(spaceId).to.not.equal(differentSpaceId);
     });
   });

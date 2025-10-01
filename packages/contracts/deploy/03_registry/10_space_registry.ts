@@ -9,7 +9,9 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   // Skip deployment if explicitly disabled
   if (process.env.SKIP_SPACE_REGISTRY_DEPLOYMENT === 'true') {
-    console.log('Skipping SpaceRegistry deployment (SKIP_SPACE_REGISTRY_DEPLOYMENT=true)');
+    console.log(
+      'Skipping SpaceRegistry deployment (SKIP_SPACE_REGISTRY_DEPLOYMENT=true)'
+    );
     return;
   }
 
@@ -48,10 +50,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
       execute: {
         init: {
           methodName: 'initialize',
-          args: [owner, daoFactoryAddress]
-        }
-      }
-    }
+          args: [owner, daoFactoryAddress],
+        },
+      },
+    },
   });
 
   if (spaceRegistry.newlyDeployed) {
@@ -68,7 +70,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     // Store SpaceRegistry address if needed for other contracts
     (hre as any).spaceRegistry = {
       address: spaceRegistry.address,
-      owner: owner
+      owner: owner,
     };
   }
 };

@@ -2,8 +2,8 @@
 
 pragma solidity 0.8.17;
 
-import { DAO } from "@aragon/osx/core/dao/DAO.sol";
-import { DAOFactory } from "@aragon/osx/framework/dao/DAOFactory.sol";
+import {DAO} from "@aragon/osx/core/dao/DAO.sol";
+import {DAOFactory} from "@aragon/osx/framework/dao/DAOFactory.sol";
 
 // This is a mock DAO contract that can be used for testing purposes. It
 // inherits from the Aragon OSx DAO contract and provides a mock implementation
@@ -38,4 +38,3 @@ contract MockDAOFactory {
         return dao;
     }
 }
-
