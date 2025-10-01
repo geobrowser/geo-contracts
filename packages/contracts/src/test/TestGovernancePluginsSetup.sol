@@ -40,17 +40,23 @@ contract TestGovernancePluginsSetup is PluginSetup {
         (
             MajorityVotingBase.VotingSettings memory _votingSettings,
             address[] memory _initialEditors,
+            address[] memory _initialMembers,
             uint64 _memberAccessProposalDuration,
             address _pluginUpgrader
         ) = decodeInstallationParams(_data);
 
         // Deploy the member access plugin
-        MemberAccessPlugin.MultisigSettings memory _multisigSettings;
-        _multisigSettings.proposalDuration = _memberAccessProposalDuration;
-
         address _memberAccessPlugin = createERC1967Proxy(
             memberAccessPluginImplementation(),
-            abi.encodeCall(MemberAccessPlugin.initialize, (IDAO(_dao), _multisigSettings))
+            abi.encodeCall(
+                MemberAccessPlugin.initialize,
+                (
+                    IDAO(_dao),
+                    MemberAccessPlugin.MultisigSettings({
+                        proposalDuration: _memberAccessProposalDuration
+                    })
+                )
+            )
         );
 
         // Deploy the main voting plugin
@@ -62,6 +68,7 @@ contract TestGovernancePluginsSetup is PluginSetup {
                     IDAO(_dao),
                     _votingSettings,
                     _initialEditors,
+                    _initialMembers,
                     MemberAccessPlugin(_memberAccessPlugin)
                 )
             )
@@ -105,13 +112,14 @@ contract TestGovernancePluginsSetup is PluginSetup {
                 .UPDATE_ADDRESSES_PERMISSION_ID()
         });
 
-        // The member access plugin needs to execute on the DAO
+        // The MainVotingPlugin can create membership proposals on the MemberAccessPlugin
         permissions[3] = PermissionLib.MultiTargetPermission({
             operation: PermissionLib.Operation.Grant,
             where: _memberAccessPlugin,
             who: mainVotingPlugin,
             condition: PermissionLib.NO_CONDITION,
-            permissionId: MemberAccessPlugin(_memberAccessPlugin).PROPOSER_PERMISSION_ID()
+            permissionId: MemberAccessPlugin(memberAccessPluginImplementation())
+                .PROPOSER_PERMISSION_ID()
         });
 
         // The member access plugin needs to execute on the DAO
@@ -119,6 +127,7 @@ contract TestGovernancePluginsSetup is PluginSetup {
             operation: PermissionLib.Operation.GrantWithCondition,
             where: _dao,
             who: _memberAccessPlugin,
+            // Conditional execution
             condition: _memberAccessExecuteCondition,
             permissionId: DAO(payable(_dao)).EXECUTE_PERMISSION_ID()
         });
@@ -128,7 +137,7 @@ contract TestGovernancePluginsSetup is PluginSetup {
             where: _memberAccessPlugin,
             who: _dao,
             condition: PermissionLib.NO_CONDITION,
-            permissionId: MemberAccessPlugin(_memberAccessPlugin)
+            permissionId: MemberAccessPlugin(memberAccessPluginImplementation())
                 .UPDATE_MULTISIG_SETTINGS_PERMISSION_ID()
         });
 
@@ -246,7 +255,8 @@ contract TestGovernancePluginsSetup is PluginSetup {
             where: _memberAccessPlugin,
             who: _payload.plugin,
             condition: PermissionLib.NO_CONDITION,
-            permissionId: MemberAccessPlugin(_memberAccessPlugin).PROPOSER_PERMISSION_ID()
+            permissionId: MemberAccessPlugin(memberAccessPluginImplementation())
+                .PROPOSER_PERMISSION_ID()
         });
 
         // The plugin can no longer execute on the DAO
@@ -294,6 +304,7 @@ contract TestGovernancePluginsSetup is PluginSetup {
     function encodeInstallationParams(
         MajorityVotingBase.VotingSettings calldata _votingSettings,
         address[] calldata _initialEditors,
+        address[] calldata _initialMembers,
         uint64 _memberAccessProposalDuration,
         address _pluginUpgrader
     ) public pure returns (bytes memory) {
@@ -301,6 +312,7 @@ contract TestGovernancePluginsSetup is PluginSetup {
             abi.encode(
                 _votingSettings,
                 _initialEditors,
+                _initialMembers,
                 _memberAccessProposalDuration,
                 _pluginUpgrader
             );
@@ -315,13 +327,20 @@ contract TestGovernancePluginsSetup is PluginSetup {
         returns (
             MajorityVotingBase.VotingSettings memory votingSettings,
             address[] memory initialEditors,
+            address[] memory initialMembers,
             uint64 memberAccessProposalDuration,
             address pluginUpgrader
         )
     {
-        (votingSettings, initialEditors, memberAccessProposalDuration, pluginUpgrader) = abi.decode(
+        (
+            votingSettings,
+            initialEditors,
+            initialMembers,
+            memberAccessProposalDuration,
+            pluginUpgrader
+        ) = abi.decode(
             _data,
-            (MajorityVotingBase.VotingSettings, address[], uint64, address)
+            (MajorityVotingBase.VotingSettings, address[], address[], uint64, address)
         );
     }
 

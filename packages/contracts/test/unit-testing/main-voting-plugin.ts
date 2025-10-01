@@ -87,6 +87,9 @@ describe('Main Voting Plugin', function () {
       new SpacePlugin__factory(alice)
     );
 
+    const initialEditors = [alice.address];
+    const initialMembers = [bob.address];
+
     // inits
     await memberAccessPlugin.initialize(dao.address, {
       proposalDuration: 60 * 60 * 24 * 5,
@@ -94,7 +97,8 @@ describe('Main Voting Plugin', function () {
     await mainVotingPlugin.initialize(
       dao.address,
       defaultMainVotingSettings,
-      [alice.address],
+      initialEditors,
+      initialMembers,
       memberAccessPlugin.address
     );
     await spacePlugin.initialize(
@@ -152,23 +156,29 @@ describe('Main Voting Plugin', function () {
 
     // Alice is already an editor (see initialize)
 
-    // Bob is a member
-    await mainVotingPlugin.proposeAddMember('0x', bob.address);
+    // Bob is already a  member (see initialize)
   });
 
   describe('initialize', async () => {
     it('reverts if trying to re-initialize', async () => {
+      const initialEditors = [alice.address];
+      const initialMembers = [bob.address];
+
       await expect(
         mainVotingPlugin.initialize(
           dao.address,
           defaultMainVotingSettings,
-          [alice.address],
+          initialEditors,
+          initialMembers,
           memberAccessPlugin.address
         )
       ).to.be.revertedWith('Initializable: contract is already initialized');
     });
 
     it('Fails to initialize with an incompatible main voting plugin', async () => {
+      const initialEditors = [alice.address];
+      const initialMembers = [bob.address];
+
       // ok
       mainVotingPlugin = await deployWithProxy<MainVotingPlugin>(
         new MainVotingPlugin__factory(alice)
@@ -177,7 +187,8 @@ describe('Main Voting Plugin', function () {
         mainVotingPlugin.initialize(
           dao.address,
           defaultMainVotingSettings,
-          [alice.address],
+          initialEditors,
+          initialMembers,
           memberAccessPlugin.address
         )
       ).to.not.be.reverted;
@@ -190,7 +201,8 @@ describe('Main Voting Plugin', function () {
         mainVotingPlugin.initialize(
           dao.address,
           defaultMainVotingSettings,
-          [alice.address],
+          initialEditors,
+          initialMembers,
           bob.address
         )
       ).to.be.reverted;
@@ -203,58 +215,45 @@ describe('Main Voting Plugin', function () {
         mainVotingPlugin.initialize(
           dao.address,
           defaultMainVotingSettings,
-          [alice.address],
+          initialEditors,
+          initialMembers,
           spacePlugin.address
         )
       ).to.be.reverted;
     });
 
-    it('The plugin has one editor after created', async () => {
-      // Alice
+    it('The plugin has multiple editors and members after created', async () => {
+      const initialEditors = [alice.address, bob.address];
+      const initialMembers = [carol.address, dave.address];
+
       mainVotingPlugin = await deployWithProxy<MainVotingPlugin>(
         new MainVotingPlugin__factory(alice)
       );
       await mainVotingPlugin.initialize(
         dao.address,
         defaultMainVotingSettings,
-        [alice.address],
+        initialEditors,
+        initialMembers,
         memberAccessPlugin.address
       );
       await mineBlock();
 
-      expect(await mainVotingPlugin.addresslistLength()).to.eq(1);
+      expect(await mainVotingPlugin.addresslistLength()).to.eq(2);
       expect(await mainVotingPlugin.totalVotingPower(0)).to.eq(0);
       expect(
         await mainVotingPlugin.totalVotingPower(
           (await ethers.provider.getBlockNumber()) - 1
         )
-      ).to.eq(1);
+      ).to.eq(2);
 
       expect(await mainVotingPlugin.isEditor(alice.address)).to.be.true;
-      expect(await mainVotingPlugin.isEditor(bob.address)).to.be.false;
-
-      // Bob
-      mainVotingPlugin = await deployWithProxy<MainVotingPlugin>(
-        new MainVotingPlugin__factory(alice)
-      );
-      await mainVotingPlugin.initialize(
-        dao.address,
-        defaultMainVotingSettings,
-        [bob.address],
-        memberAccessPlugin.address
-      );
-      await mineBlock();
-
-      expect(await mainVotingPlugin.addresslistLength()).to.eq(1);
-      expect(await mainVotingPlugin.totalVotingPower(0)).to.eq(0);
-      expect(
-        await mainVotingPlugin.totalVotingPower(
-          (await ethers.provider.getBlockNumber()) - 1
-        )
-      ).to.eq(1);
-
-      expect(await mainVotingPlugin.isEditor(alice.address)).to.be.false;
       expect(await mainVotingPlugin.isEditor(bob.address)).to.be.true;
+      expect(await mainVotingPlugin.isEditor(carol.address)).to.be.false;
+      expect(await mainVotingPlugin.isEditor(dave.address)).to.be.false;
+      expect(await mainVotingPlugin.isMember(alice.address)).to.be.true;
+      expect(await mainVotingPlugin.isMember(bob.address)).to.be.true;
+      expect(await mainVotingPlugin.isMember(carol.address)).to.be.true;
+      expect(await mainVotingPlugin.isMember(dave.address)).to.be.true;
     });
   });
 
@@ -282,6 +281,9 @@ describe('Main Voting Plugin', function () {
     });
 
     it('Only members can create proposals', async () => {
+      expect(await mainVotingPlugin.isMember(alice.address)).to.be.true;
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.be.true;
+
       await expect(
         mainVotingPlugin.connect(alice).createProposal(
           toUtf8Bytes('ipfs://'),
@@ -292,6 +294,9 @@ describe('Main Voting Plugin', function () {
         )
       ).to.not.be.reverted;
 
+      expect(await mainVotingPlugin.isMember(bob.address)).to.be.true;
+      expect(await mainVotingPlugin.isEditor(bob.address)).to.be.false;
+
       await expect(
         mainVotingPlugin.connect(bob).createProposal(
           toUtf8Bytes('ipfs://'),
@@ -301,6 +306,9 @@ describe('Main Voting Plugin', function () {
           true // auto execute
         )
       ).to.not.be.reverted;
+
+      expect(await mainVotingPlugin.isMember(carol.address)).to.be.false;
+      expect(await mainVotingPlugin.isEditor(carol.address)).to.be.false;
 
       await expect(
         mainVotingPlugin.connect(carol).createProposal(
@@ -313,6 +321,9 @@ describe('Main Voting Plugin', function () {
       )
         .to.be.revertedWithCustomError(mainVotingPlugin, 'NotAMember')
         .withArgs(carol.address);
+
+      expect(await mainVotingPlugin.isMember(dave.address)).to.be.false;
+      expect(await mainVotingPlugin.isEditor(dave.address)).to.be.false;
 
       await expect(
         mainVotingPlugin.connect(dave).createProposal(
@@ -365,6 +376,8 @@ describe('Main Voting Plugin', function () {
       );
 
       expect(await mainVotingPlugin.isMember(bob.address)).to.be.true;
+      expect(await mainVotingPlugin.isEditor(bob.address)).to.be.false;
+
       await expect(
         mainVotingPlugin
           .connect(bob)
@@ -393,6 +406,9 @@ describe('Main Voting Plugin', function () {
         BigNumber.from(4)
       );
 
+      expect(await mainVotingPlugin.isMember(carol.address)).to.be.false;
+      expect(await mainVotingPlugin.isEditor(carol.address)).to.be.false;
+
       await expect(
         mainVotingPlugin
           .connect(carol)
@@ -417,6 +433,9 @@ describe('Main Voting Plugin', function () {
       )
         .to.be.revertedWithCustomError(mainVotingPlugin, 'NotAMember')
         .withArgs(carol.address);
+
+      expect(await mainVotingPlugin.isMember(dave.address)).to.be.false;
+      expect(await mainVotingPlugin.isEditor(dave.address)).to.be.false;
 
       await expect(
         mainVotingPlugin
@@ -444,6 +463,11 @@ describe('Main Voting Plugin', function () {
     });
 
     it('Only editors can vote on proposals', async () => {
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.be.true;
+      expect(await mainVotingPlugin.isEditor(bob.address)).to.be.false;
+      expect(await mainVotingPlugin.isEditor(carol.address)).to.be.false;
+      expect(await mainVotingPlugin.isEditor(dave.address)).to.be.false;
+
       await expect(
         mainVotingPlugin.connect(bob).createProposal(
           toUtf8Bytes('ipfs://'),
@@ -483,6 +507,7 @@ describe('Main Voting Plugin', function () {
     });
 
     it('Only editors can vote when creating proposals', async () => {
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.eq(true);
       expect(await mainVotingPlugin.isEditor(bob.address)).to.eq(false);
 
       // Bob can't create and vote
@@ -534,11 +559,12 @@ describe('Main Voting Plugin', function () {
       expect(await mainVotingPlugin.isMember(ADDRESS_ZERO)).to.eq(false);
       expect(await mainVotingPlugin.isMember(ADDRESS_ONE)).to.eq(false);
       expect(await mainVotingPlugin.isMember(ADDRESS_TWO)).to.eq(false);
+      expect(await mainVotingPlugin.isMember(ADDRESS_THREE)).to.eq(false);
 
       expect(await mainVotingPlugin.isMember(alice.address)).to.eq(true);
       expect(await mainVotingPlugin.isMember(bob.address)).to.eq(true);
-
       expect(await mainVotingPlugin.isMember(carol.address)).to.eq(false);
+      expect(await mainVotingPlugin.isMember(dave.address)).to.eq(false);
 
       await mainVotingPlugin.proposeAddMember('0x', carol.address);
       expect(await mainVotingPlugin.isMember(carol.address)).to.eq(true);
@@ -555,10 +581,12 @@ describe('Main Voting Plugin', function () {
       expect(await mainVotingPlugin.isEditor(ADDRESS_ZERO)).to.eq(false);
       expect(await mainVotingPlugin.isEditor(ADDRESS_ONE)).to.eq(false);
       expect(await mainVotingPlugin.isEditor(ADDRESS_TWO)).to.eq(false);
+      expect(await mainVotingPlugin.isEditor(ADDRESS_THREE)).to.eq(false);
 
       expect(await mainVotingPlugin.isEditor(alice.address)).to.eq(true);
       expect(await mainVotingPlugin.isEditor(bob.address)).to.eq(false);
       expect(await mainVotingPlugin.isEditor(carol.address)).to.eq(false);
+      expect(await mainVotingPlugin.isEditor(dave.address)).to.eq(false);
 
       await makeEditor(carol.address);
 
@@ -918,9 +946,9 @@ describe('Main Voting Plugin', function () {
     });
 
     it('proposeAddMember creates a proposal on the MemberAccessPlugin', async () => {
-      let msPid = 1;
+      let msPid = 0;
       expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
-      expect((await memberAccessPlugin.proposalCount()).toNumber()).to.eq(1);
+      expect((await memberAccessPlugin.proposalCount()).toNumber()).to.eq(0);
       await expect(
         mainVotingPlugin.proposeAddMember(
           toUtf8Bytes('ipfs://meta'),
@@ -929,7 +957,7 @@ describe('Main Voting Plugin', function () {
       ).to.not.be.reverted;
 
       expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
-      expect((await memberAccessPlugin.proposalCount()).toNumber()).to.eq(2);
+      expect((await memberAccessPlugin.proposalCount()).toNumber()).to.eq(1);
 
       let proposal = await memberAccessPlugin.getProposal(msPid);
       expect(proposal.actions.length).to.eq(1);
@@ -946,12 +974,12 @@ describe('Main Voting Plugin', function () {
       await expect(
         mainVotingPlugin.proposeAddMember(
           toUtf8Bytes('ipfs://more-meta'),
-          ADDRESS_THREE
+          dave.address
         )
       ).to.not.be.reverted;
 
       expect((await mainVotingPlugin.proposalCount()).toNumber()).to.eq(0);
-      expect((await memberAccessPlugin.proposalCount()).toNumber()).to.eq(3);
+      expect((await memberAccessPlugin.proposalCount()).toNumber()).to.eq(2);
 
       proposal = await memberAccessPlugin.getProposal(msPid);
       expect(proposal.actions.length).to.eq(1);
@@ -959,7 +987,7 @@ describe('Main Voting Plugin', function () {
       expect(proposal.actions[0].value.toNumber()).to.eq(0);
       expect(proposal.actions[0].data).to.eq(
         mainVotingPluginInterface.encodeFunctionData('addMember', [
-          ADDRESS_THREE,
+          dave.address,
         ])
       );
     });
@@ -1481,6 +1509,7 @@ describe('Main Voting Plugin', function () {
   context('After proposals', () => {
     it('Adding an editor increases the editorCount', async () => {
       expect(await mainVotingPlugin.addresslistLength()).to.eq(1);
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.eq(true);
 
       // Add Bob
       await proposeNewEditor(bob.address);
@@ -1528,6 +1557,7 @@ describe('Main Voting Plugin', function () {
         'NoEditorsLeft'
       );
       expect(await mainVotingPlugin.addresslistLength()).to.eq(1);
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.be.true;
 
       // Add Bob
       await proposeNewEditor(bob.address);
@@ -1540,12 +1570,15 @@ describe('Main Voting Plugin', function () {
       await expect(mainVotingPlugin.connect(bob).vote(1, VoteOption.Yes, true))
         .to.not.be.reverted;
       expect(await mainVotingPlugin.addresslistLength()).to.eq(1);
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.be.true;
 
       // Try to remove Alice
       await expect(pullEditor(alice.address)).to.be.revertedWithCustomError(
         mainVotingPlugin,
         'NoEditorsLeft'
       );
+      expect(await mainVotingPlugin.addresslistLength()).to.eq(1);
+      expect(await mainVotingPlugin.isEditor(alice.address)).to.be.true;
     });
 
     it('Attempting to vote twice fails (replacement disabled)', async () => {
@@ -1755,12 +1788,12 @@ describe('Main Voting Plugin', function () {
       expect(await mainVotingPlugin.isMember(carol.address)).to.be.true;
 
       // 2
-      expect(await mainVotingPlugin.isMember(ADDRESS_THREE)).to.be.false;
+      expect(await mainVotingPlugin.isMember(dave.address)).to.be.false;
       await mainVotingPlugin.proposeAddMember(
         toUtf8Bytes('ipfs://'),
-        ADDRESS_THREE
+        dave.address
       );
-      expect(await mainVotingPlugin.isMember(ADDRESS_THREE)).to.be.true;
+      expect(await mainVotingPlugin.isMember(dave.address)).to.be.true;
     });
   });
 
@@ -2016,6 +2049,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
           dao.address,
           votingSettings,
           [signers[0].address],
+          [signers[1].address],
           memberAccessPlugin.address
         );
         await memberAccessPlugin.initialize(dao.address, {
@@ -2176,6 +2210,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
           dao.address,
           votingSettings,
           [signers[0].address],
+          [signers[1].address],
           memberAccessPlugin.address
         );
         await memberAccessPlugin.initialize(dao.address, {
@@ -2402,6 +2437,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
           dao.address,
           votingSettings,
           [signers[0].address],
+          [signers[1].address],
           memberAccessPlugin.address
         );
         await memberAccessPlugin.initialize(dao.address, {
@@ -2570,6 +2606,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
           dao.address,
           votingSettings,
           [signers[0].address],
+          [signers[1].address],
           memberAccessPlugin.address
         );
         await memberAccessPlugin.initialize(dao.address, {
@@ -2698,6 +2735,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
           dao.address,
           votingSettings,
           [signers[0].address],
+          [signers[1].address],
           memberAccessPlugin.address
         );
         await memberAccessPlugin.initialize(dao.address, {
@@ -2768,6 +2806,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
           dao.address,
           votingSettings,
           [signers[0].address],
+          [signers[1].address],
           memberAccessPlugin.address
         );
         await memberAccessPlugin.initialize(dao.address, {
@@ -2843,6 +2882,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
           dao.address,
           votingSettings,
           [signers[0].address],
+          [signers[1].address],
           memberAccessPlugin.address
         );
         await memberAccessPlugin.initialize(dao.address, {

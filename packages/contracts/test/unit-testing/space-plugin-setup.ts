@@ -9,6 +9,7 @@ import {deployTestDao} from '../helpers/test-dao';
 import {Operation} from '../helpers/types';
 import {
   ADDRESS_ONE,
+  ADDRESS_TWO,
   ADDRESS_ZERO,
   CONTENT_PERMISSION_ID,
   EXECUTE_PERMISSION_ID,
@@ -21,14 +22,13 @@ import {ethers, network} from 'hardhat';
 
 describe('Space Plugin Setup', function () {
   let alice: SignerWithAddress;
-  let bob: SignerWithAddress;
   let spacePluginSetup: SpacePluginSetup;
   let SpacePluginSetup: SpacePluginSetup__factory;
   let dao: DAO;
   const defaultInitData = {contentUri: 'ipfs://', metadata: '0x'};
 
   before(async () => {
-    [alice, bob] = await ethers.getSigners();
+    [alice] = await ethers.getSigners();
     dao = await deployTestDao(alice);
 
     const pspAddress = process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
@@ -41,12 +41,13 @@ describe('Space Plugin Setup', function () {
 
   describe('prepareInstallation', async () => {
     it('returns the plugin, helpers, and permissions (no pluginUpgrader)', async () => {
+      const pluginUpgrader = ADDRESS_ZERO;
       const initData = await spacePluginSetup.encodeInstallationParams(
         ADDRESS_ONE,
         defaultInitData.contentUri,
         defaultInitData.metadata,
         ADDRESS_ZERO,
-        ADDRESS_ZERO
+        pluginUpgrader
       );
 
       const nonce = await ethers.provider.getTransactionCount(
@@ -93,7 +94,7 @@ describe('Space Plugin Setup', function () {
     });
 
     it('returns the plugin, helpers, and permissions (with a pluginUpgrader)', async () => {
-      const pluginUpgrader = bob.address;
+      const pluginUpgrader = ADDRESS_TWO;
       const initData = await spacePluginSetup.encodeInstallationParams(
         ADDRESS_ONE,
         defaultInitData.contentUri,
@@ -101,6 +102,7 @@ describe('Space Plugin Setup', function () {
         ADDRESS_ZERO,
         pluginUpgrader
       );
+
       const nonce = await ethers.provider.getTransactionCount(
         spacePluginSetup.address
       );
@@ -160,8 +162,9 @@ describe('Space Plugin Setup', function () {
     it('returns the permission changes (no pluginUpgrader)', async () => {
       const plugin = await new SpacePlugin__factory(alice).deploy();
 
+      const pluginUpgrader = ADDRESS_ZERO;
       const uninstallData = await spacePluginSetup.encodeUninstallationParams(
-        ADDRESS_ZERO
+        pluginUpgrader
       );
 
       const permissions =
@@ -193,7 +196,7 @@ describe('Space Plugin Setup', function () {
     it('returns the permission changes (with a pluginUpgrader)', async () => {
       const plugin = await new SpacePlugin__factory(alice).deploy();
 
-      const pluginUpgrader = bob.address;
+      const pluginUpgrader = ADDRESS_TWO;
       const uninstallData = await spacePluginSetup.encodeUninstallationParams(
         pluginUpgrader
       );

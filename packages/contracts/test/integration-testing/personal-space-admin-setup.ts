@@ -23,6 +23,7 @@ import {BigNumber} from 'ethers';
 import {ethers, network} from 'hardhat';
 
 describe('PersonalSpaceAdmin processing', function () {
+  let deployer: SignerWithAddress;
   let alice: SignerWithAddress;
 
   let psp: PluginSetupProcessor;
@@ -30,7 +31,7 @@ describe('PersonalSpaceAdmin processing', function () {
   let pluginRepo: PluginRepo;
 
   before(async () => {
-    [alice] = await ethers.getSigners();
+    [deployer, alice] = await ethers.getSigners();
 
     const pluginRepoInfo = getPluginRepoInfo(
       PersonalSpaceAdminPluginSetupParams.PLUGIN_REPO_ENS_NAME,
@@ -45,10 +46,10 @@ describe('PersonalSpaceAdmin processing', function () {
       ? process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
       : getPluginSetupProcessorAddress(network.name, true);
 
-    psp = PluginSetupProcessor__factory.connect(pspAddress, alice);
+    psp = PluginSetupProcessor__factory.connect(pspAddress, deployer);
 
     // Deploy DAO.
-    dao = await deployTestDao(alice);
+    dao = await deployTestDao(deployer);
 
     await dao.grant(
       dao.address,
@@ -57,21 +58,21 @@ describe('PersonalSpaceAdmin processing', function () {
     );
     await dao.grant(
       psp.address,
-      alice.address,
+      deployer.address,
       ethers.utils.id('APPLY_INSTALLATION_PERMISSION')
     );
     await dao.grant(
       psp.address,
-      alice.address,
+      deployer.address,
       ethers.utils.id('APPLY_UNINSTALLATION_PERMISSION')
     );
     await dao.grant(
       psp.address,
-      alice.address,
+      deployer.address,
       ethers.utils.id('APPLY_UPDATE_PERMISSION')
     );
 
-    pluginRepo = PluginRepo__factory.connect(pluginRepoInfo.address, alice);
+    pluginRepo = PluginRepo__factory.connect(pluginRepoInfo.address, deployer);
   });
 
   context('Build 1', async () => {
@@ -98,15 +99,19 @@ describe('PersonalSpaceAdmin processing', function () {
     });
 
     beforeEach(async () => {
-      const initialEditor = alice.address;
+      const initialEditors = [deployer.address];
+      const initialMembers = [alice.address];
 
       // Install build 1.
-      const data = await setup.encodeInstallationParams(initialEditor);
+      const data = await setup.encodeInstallationParams(
+        initialEditors,
+        initialMembers
+      );
       const results = await installPlugin(psp, dao, pluginSetupRef, data);
 
       plugin = PersonalSpaceAdminPlugin__factory.connect(
         results.preparedEvent.args.plugin,
-        alice
+        deployer
       );
     });
 

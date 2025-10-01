@@ -20,8 +20,8 @@ import {getInterfaceID} from '../../utils/interfaces';
 import {deployTestDao} from '../helpers/test-dao';
 import {
   ADDRESS_ONE,
-  ADDRESS_THREE,
   ADDRESS_TWO,
+  ADDRESS_THREE,
   ADDRESS_ZERO,
   CONTENT_PERMISSION_ID,
   MEMBER_PERMISSION_ID,
@@ -46,7 +46,7 @@ export const defaultInitData: InitData = {
   metadata: '0x',
 };
 export const psvpInterface = new ethers.utils.Interface([
-  'function initialize(address, address)',
+  'function initialize(address, address[], address[])',
   'function executeProposal(bytes,tuple(address,uint256,bytes)[],uint256)',
   'function submitEdits(string, bytes, address)',
   'function submitFlagContent(string, address)',
@@ -149,7 +149,14 @@ describe('Personal Space Admin Plugin', function () {
   });
 
   function initializePSVPlugin() {
-    return personalSpaceVotingPlugin.initialize(dao.address, alice.address);
+    const initialEditors = [alice.address];
+    const initialMembers = [bob.address];
+
+    return personalSpaceVotingPlugin.initialize(
+      dao.address,
+      initialEditors,
+      initialMembers
+    );
   }
 
   describe('initialize: ', async () => {
@@ -182,6 +189,9 @@ describe('Personal Space Admin Plugin', function () {
     expect(await personalSpaceVotingPlugin.isMember(ADDRESS_ZERO)).to.eq(false);
     expect(await personalSpaceVotingPlugin.isMember(ADDRESS_ONE)).to.eq(false);
     expect(await personalSpaceVotingPlugin.isMember(ADDRESS_TWO)).to.eq(false);
+    expect(await personalSpaceVotingPlugin.isMember(ADDRESS_THREE)).to.eq(
+      false
+    );
 
     expect(await personalSpaceVotingPlugin.isMember(alice.address)).to.eq(true);
     expect(await personalSpaceVotingPlugin.isMember(bob.address)).to.eq(true);
@@ -202,6 +212,9 @@ describe('Personal Space Admin Plugin', function () {
     expect(await personalSpaceVotingPlugin.isEditor(ADDRESS_ZERO)).to.eq(false);
     expect(await personalSpaceVotingPlugin.isEditor(ADDRESS_ONE)).to.eq(false);
     expect(await personalSpaceVotingPlugin.isEditor(ADDRESS_TWO)).to.eq(false);
+    expect(await personalSpaceVotingPlugin.isEditor(ADDRESS_THREE)).to.eq(
+      false
+    );
 
     expect(await personalSpaceVotingPlugin.isEditor(alice.address)).to.eq(true);
     expect(await personalSpaceVotingPlugin.isEditor(bob.address)).to.eq(false);

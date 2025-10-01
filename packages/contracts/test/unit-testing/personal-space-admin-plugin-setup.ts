@@ -7,6 +7,7 @@ import {getInterfaceID} from '../../utils/interfaces';
 import {deployTestDao} from '../helpers/test-dao';
 import {Operation} from '../helpers/types';
 import {psvpInterface} from './personal-space-admin-plugin';
+import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
 import {ethers} from 'hardhat';
 
@@ -15,29 +16,35 @@ const EMPTY_DATA = '0x';
 
 // Permissions
 const EDITOR_PERMISSION_ID = ethers.utils.id('EDITOR_PERMISSION');
+const MEMBER_PERMISSION_ID = ethers.utils.id('MEMBER_PERMISSION');
 const EXECUTE_PERMISSION_ID = ethers.utils.id('EXECUTE_PERMISSION');
 
 describe('Personal Space Admin Plugin Setup', function () {
-  let ownerAddress: string;
-  let signers: any;
+  let alice: SignerWithAddress;
+  let bob: SignerWithAddress;
+  let carol: SignerWithAddress;
+  let dave: SignerWithAddress;
   let adminSetup: PersonalSpaceAdminPluginSetup;
   let implementationAddress: string;
   let targetDao: any;
   let prepareInstallationData: string;
 
   before(async () => {
-    signers = await ethers.getSigners();
-    ownerAddress = await signers[0].getAddress();
-    targetDao = await deployTestDao(signers[0]);
+    [alice, bob, carol, dave] = await ethers.getSigners();
+    targetDao = await deployTestDao(alice);
 
     const PersonalSpaceAdminPluginSetup =
-      new PersonalSpaceAdminPluginSetup__factory(signers[0]);
+      new PersonalSpaceAdminPluginSetup__factory(alice);
     adminSetup = await PersonalSpaceAdminPluginSetup.deploy();
 
     implementationAddress = await adminSetup.implementation();
 
+    const initialEditors = [alice.address, bob.address];
+    const initialMembers = [carol.address, dave.address];
+
     prepareInstallationData = await adminSetup.encodeInstallationParams(
-      ownerAddress
+      initialEditors,
+      initialMembers
     );
   });
 
@@ -46,7 +53,7 @@ describe('Personal Space Admin Plugin Setup', function () {
   });
 
   it('creates admin address base with the correct interface', async () => {
-    const factory = new PersonalSpaceAdminPlugin__factory(signers[0]);
+    const factory = new PersonalSpaceAdminPlugin__factory(alice);
     const adminAddressContract = factory.attach(implementationAddress);
 
     expect(
@@ -80,18 +87,6 @@ describe('Personal Space Admin Plugin Setup', function () {
       ).not.to.be.reverted;
     });
 
-    it('reverts if encoded address in `_data` is zero', async () => {
-      const dataWithAddressZero = await adminSetup.encodeInstallationParams(
-        AddressZero
-      );
-
-      await expect(
-        adminSetup.prepareInstallation(targetDao.address, dataWithAddressZero)
-      )
-        .to.be.revertedWithCustomError(adminSetup, 'EditorAddressInvalid')
-        .withArgs(AddressZero);
-    });
-
     it('correctly returns plugin, helpers and permissions', async () => {
       const nonce = await ethers.provider.getTransactionCount(
         adminSetup.address
@@ -111,14 +106,35 @@ describe('Personal Space Admin Plugin Setup', function () {
 
       expect(plugin).to.be.equal(anticipatedPluginAddress);
       expect(helpers.length).to.be.equal(0);
-      expect(permissions.length).to.be.equal(2);
+      expect(permissions.length).to.be.equal(5);
       expect(permissions).to.deep.equal([
         [
           Operation.Grant,
           plugin,
-          ownerAddress,
+          alice.address,
           AddressZero,
           EDITOR_PERMISSION_ID,
+        ],
+        [
+          Operation.Grant,
+          plugin,
+          bob.address,
+          AddressZero,
+          EDITOR_PERMISSION_ID,
+        ],
+        [
+          Operation.Grant,
+          plugin,
+          carol.address,
+          AddressZero,
+          MEMBER_PERMISSION_ID,
+        ],
+        [
+          Operation.Grant,
+          plugin,
+          dave.address,
+          AddressZero,
+          MEMBER_PERMISSION_ID,
         ],
         [
           Operation.Grant,
@@ -143,7 +159,7 @@ describe('Personal Space Admin Plugin Setup', function () {
 
       await adminSetup.prepareInstallation(daoAddress, prepareInstallationData);
 
-      const factory = new PersonalSpaceAdminPlugin__factory(signers[0]);
+      const factory = new PersonalSpaceAdminPlugin__factory(alice);
       const adminAddressContract = factory.attach(anticipatedPluginAddress);
 
       expect(await adminAddressContract.dao()).to.be.equal(daoAddress);

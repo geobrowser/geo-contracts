@@ -96,6 +96,9 @@ describe('Member Access Plugin', function () {
         mainVotingPlugin.address
       );
 
+    const initialEditors = [alice.address];
+    const initialMembers = [bob.address];
+
     // inits
     await memberAccessPlugin.initialize(dao.address, {
       proposalDuration: 60 * 60 * 24 * 5,
@@ -103,7 +106,8 @@ describe('Member Access Plugin', function () {
     await mainVotingPlugin.initialize(
       dao.address,
       defaultMainVotingSettings,
-      [alice.address],
+      initialEditors,
+      initialMembers,
       memberAccessPlugin.address
     );
     await spacePlugin.initialize(
@@ -158,9 +162,7 @@ describe('Member Access Plugin', function () {
 
     // Alice is an editor (see mainVotingPlugin initialize)
 
-    // Bob is a member
-    await mineBlock();
-    await mainVotingPlugin.proposeAddMember('0x', bob.address);
+    // Bob is a member (see mainVotingPlugin initialize)
   });
 
   describe('initialize', () => {
@@ -310,10 +312,12 @@ describe('Member Access Plugin', function () {
       expect(await mainVotingPlugin.isMember(ADDRESS_ZERO)).to.eq(false);
       expect(await mainVotingPlugin.isMember(ADDRESS_ONE)).to.eq(false);
       expect(await mainVotingPlugin.isMember(ADDRESS_TWO)).to.eq(false);
+      expect(await mainVotingPlugin.isMember(ADDRESS_THREE)).to.eq(false);
 
       expect(await mainVotingPlugin.isMember(alice.address)).to.eq(true);
       expect(await mainVotingPlugin.isMember(bob.address)).to.eq(true);
       expect(await mainVotingPlugin.isMember(carol.address)).to.eq(false);
+      expect(await mainVotingPlugin.isMember(dave.address)).to.eq(false);
 
       await mainVotingPlugin.proposeAddMember('0x', carol.address);
       expect(await mainVotingPlugin.isMember(carol.address)).to.eq(true);
@@ -332,10 +336,12 @@ describe('Member Access Plugin', function () {
       expect(await mainVotingPlugin.isEditor(ADDRESS_ZERO)).to.eq(false);
       expect(await mainVotingPlugin.isEditor(ADDRESS_ONE)).to.eq(false);
       expect(await mainVotingPlugin.isEditor(ADDRESS_TWO)).to.eq(false);
+      expect(await mainVotingPlugin.isEditor(ADDRESS_THREE)).to.eq(false);
 
       expect(await mainVotingPlugin.isEditor(alice.address)).to.eq(true);
       expect(await mainVotingPlugin.isEditor(bob.address)).to.eq(false);
       expect(await mainVotingPlugin.isEditor(carol.address)).to.eq(false);
+      expect(await mainVotingPlugin.isEditor(dave.address)).to.eq(false);
 
       await proposeNewEditor(carol.address);
 
@@ -967,6 +973,9 @@ describe('Member Access Plugin', function () {
   describe('Tests replicated from MultisigPlugin', () => {
     describe('initialize', () => {
       it('reverts if trying to re-initialize', async () => {
+        const initialEditors = [alice.address];
+        const initialMembers = [bob.address];
+
         await expect(
           memberAccessPlugin.initialize(dao.address, {
             proposalDuration: 60 * 60 * 24 * 5,
@@ -976,7 +985,8 @@ describe('Member Access Plugin', function () {
           mainVotingPlugin.initialize(
             dao.address,
             defaultMainVotingSettings,
-            [alice.address],
+            initialEditors,
+            initialMembers,
             memberAccessPlugin.address
           )
         ).to.be.revertedWith('Initializable: contract is already initialized');
@@ -1095,8 +1105,8 @@ describe('Member Access Plugin', function () {
           dave.address
         );
 
-        expect(proposalId0).to.equal(1);
-        expect(proposalId1).to.equal(2);
+        expect(proposalId0).to.equal(0);
+        expect(proposalId1).to.equal(1);
 
         expect(proposalId0).to.not.equal(proposalId1);
       });
@@ -1153,6 +1163,7 @@ describe('Member Access Plugin', function () {
         expect(await mainVotingPlugin.isEditor(alice.address)).to.be.true;
         expect(await mainVotingPlugin.isEditor(bob.address)).to.be.true;
         expect(await mainVotingPlugin.isEditor(carol.address)).to.be.false;
+        expect(await mainVotingPlugin.isEditor(dave.address)).to.be.false;
 
         // Alice approves
         pid = await memberAccessPlugin.proposalCount();
@@ -1283,6 +1294,7 @@ describe('Member Access Plugin', function () {
         expect(await mainVotingPlugin.isEditor(alice.address)).to.be.true;
         expect(await mainVotingPlugin.isEditor(bob.address)).to.be.true;
         expect(await mainVotingPlugin.isEditor(carol.address)).to.be.false;
+        expect(await mainVotingPlugin.isEditor(dave.address)).to.be.false;
 
         // Alice approves
         pid = await memberAccessPlugin.proposalCount();

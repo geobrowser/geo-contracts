@@ -59,6 +59,7 @@ const pspInterface = PluginSetupProcessor__factory.createInterface();
 describe('Plugin upgrader', () => {
   let deployer: SignerWithAddress;
   let pluginUpgrader: SignerWithAddress;
+  let alice: SignerWithAddress;
 
   let psp: PluginSetupProcessor;
   let dao: DAO;
@@ -72,7 +73,7 @@ describe('Plugin upgrader', () => {
     let installation1: Awaited<ReturnType<typeof installPlugin>>;
 
     before(async () => {
-      [deployer, pluginUpgrader] = await ethers.getSigners();
+      [deployer, pluginUpgrader, alice] = await ethers.getSigners();
 
       // PSP
       const pspAddress = process.env.PLUGIN_SETUP_PROCESSOR_ADDRESS
@@ -167,10 +168,14 @@ describe('Plugin upgrader', () => {
         ethers.utils.id('APPLY_INSTALLATION_PERMISSION')
       );
 
+      const initialEditors = [deployer.address];
+      const initialMembers = [alice.address];
+
       // Install build 1
       const data1 = await pSetupBuild1.encodeInstallationParams(
         pluginSettings,
-        [deployer.address],
+        initialEditors,
+        initialMembers,
         minMemberAccessProposalDuration,
         pluginUpgrader.address
       );

@@ -179,16 +179,25 @@ contract MainVotingPlugin is Addresslist, MajorityVotingBase, IEditors, IMembers
     /// @dev This method is required to support [ERC-1822](https://eips.ethereum.org/EIPS/eip-1822).
     /// @param _dao The IDAO interface of the associated DAO.
     /// @param _votingSettings The voting settings.
+    /// @param _initialEditors The initial editors.
+    /// @param _initialMembers The initial members.
+    /// @param _memberAccessPlugin The member access plugin.
     function initialize(
         IDAO _dao,
         VotingSettings calldata _votingSettings,
         address[] calldata _initialEditors,
+        address[] calldata _initialMembers,
         MemberAccessPlugin _memberAccessPlugin
     ) external initializer {
         __MajorityVotingBase_init(_dao, _votingSettings);
 
         _addAddresses(_initialEditors);
         emit EditorsAdded(address(_dao), _initialEditors);
+
+        for (uint256 _i; _i < _initialMembers.length; ++_i) {
+            members[_initialMembers[_i]] = true;
+        }
+        emit MembersAdded(address(_dao), _initialMembers);
 
         if (!_memberAccessPlugin.supportsInterface(MEMBER_ACCESS_INTERFACE_ID)) {
             revert InvalidInterface(address(_memberAccessPlugin));

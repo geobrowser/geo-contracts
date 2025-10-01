@@ -42,12 +42,19 @@ contract PersonalSpaceAdminPlugin is PluginCloneable, ProposalUpgradeable, IEdit
     }
 
     /// @notice Initializes the contract.
-    /// @param _dao The associated DAO.
     /// @dev This method is required to support [ERC-1167](https://eips.ethereum.org/EIPS/eip-1167).
-    function initialize(IDAO _dao, address _initialEditor) external initializer {
+    /// @param _dao The associated DAO.
+    /// @param _initialEditors The initial editors.
+    /// @param _initialMembers The initial members.
+    function initialize(
+        IDAO _dao,
+        address[] calldata _initialEditors,
+        address[] calldata _initialMembers
+    ) external initializer {
         __PluginCloneable_init(_dao);
 
-        emit EditorAdded(address(_dao), _initialEditor);
+        emit EditorsAdded(address(_dao), _initialEditors);
+        emit MembersAdded(address(_dao), _initialMembers);
     }
 
     /// @notice Checks if this or the parent contract supports an interface by its ID.

@@ -47,6 +47,7 @@ contract GovernancePluginsSetup is PluginSetup {
         (
             MajorityVotingBase.VotingSettings memory _votingSettings,
             address[] memory _initialEditors,
+            address[] memory _initialMembers,
             uint64 _memberAccessProposalDuration,
             address _pluginUpgrader
         ) = decodeInstallationParams(_data);
@@ -74,6 +75,7 @@ contract GovernancePluginsSetup is PluginSetup {
                     IDAO(_dao),
                     _votingSettings,
                     _initialEditors,
+                    _initialMembers,
                     MemberAccessPlugin(_memberAccessPlugin)
                 )
             )
@@ -123,7 +125,8 @@ contract GovernancePluginsSetup is PluginSetup {
             where: _memberAccessPlugin,
             who: mainVotingPlugin,
             condition: PermissionLib.NO_CONDITION,
-            permissionId: MemberAccessPlugin(_memberAccessPlugin).PROPOSER_PERMISSION_ID()
+            permissionId: MemberAccessPlugin(memberAccessPluginImplementation)
+                .PROPOSER_PERMISSION_ID()
         });
 
         // The member access plugin needs to execute on the DAO
@@ -273,6 +276,7 @@ contract GovernancePluginsSetup is PluginSetup {
     function encodeInstallationParams(
         MajorityVotingBase.VotingSettings calldata _votingSettings,
         address[] calldata _initialEditors,
+        address[] calldata _initialMembers,
         uint64 _memberAccessProposalDuration,
         address _pluginUpgrader
     ) public pure returns (bytes memory) {
@@ -280,6 +284,7 @@ contract GovernancePluginsSetup is PluginSetup {
             abi.encode(
                 _votingSettings,
                 _initialEditors,
+                _initialMembers,
                 _memberAccessProposalDuration,
                 _pluginUpgrader
             );
@@ -294,13 +299,20 @@ contract GovernancePluginsSetup is PluginSetup {
         returns (
             MajorityVotingBase.VotingSettings memory votingSettings,
             address[] memory initialEditors,
+            address[] memory initialMembers,
             uint64 memberAccessProposalDuration,
             address pluginUpgrader
         )
     {
-        (votingSettings, initialEditors, memberAccessProposalDuration, pluginUpgrader) = abi.decode(
+        (
+            votingSettings,
+            initialEditors,
+            initialMembers,
+            memberAccessProposalDuration,
+            pluginUpgrader
+        ) = abi.decode(
             _data,
-            (MajorityVotingBase.VotingSettings, address[], uint64, address)
+            (MajorityVotingBase.VotingSettings, address[], address[], uint64, address)
         );
     }
 
