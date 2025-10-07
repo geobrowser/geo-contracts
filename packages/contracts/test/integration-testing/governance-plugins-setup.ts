@@ -14,7 +14,7 @@ import {getPluginSetupProcessorAddress} from '../../utils/helpers';
 import {getPluginRepoInfo} from '../../utils/plugin-repo-info';
 import {installPlugin, uninstallPlugin} from '../helpers/setup';
 import {deployTestDao} from '../helpers/test-dao';
-import {ADDRESS_ZERO} from '../unit-testing/common';
+import {ADDRESS_ZERO, VotingMode, ThresholdMode} from '../unit-testing/common';
 import {
   DAO,
   PluginRepo__factory,
@@ -29,7 +29,8 @@ const release = 1;
 const pluginSettings: MajorityVotingBase.VotingSettingsStruct = {
   duration: 60 * 60 * 24,
   supportThreshold: 1,
-  votingMode: 0,
+  votingMode: VotingMode.Standard,
+  thresholdMode: ThresholdMode.Percentage,
 };
 const minMemberAccessProposalDuration = 60 * 60 * 24;
 

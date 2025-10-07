@@ -361,7 +361,9 @@ contract MainVotingPlugin is Addresslist, MajorityVotingBase, IEditors, IMembers
         proposal_.parameters.endDate = _startDate + duration();
         proposal_.parameters.snapshotBlock = snapshotBlock;
         proposal_.parameters.votingMode = votingMode();
+        proposal_.parameters.thresholdMode = thresholdMode();
         proposal_.parameters.supportThreshold = supportThreshold();
+
         proposalCreators[proposalId] = msg.sender;
 
         // Reduce costs
@@ -666,6 +668,7 @@ contract MainVotingPlugin is Addresslist, MajorityVotingBase, IEditors, IMembers
         proposal_.parameters.endDate = _startDate + duration();
         proposal_.parameters.snapshotBlock = snapshotBlock;
         proposal_.parameters.votingMode = votingMode();
+        proposal_.parameters.thresholdMode = thresholdMode();
         proposal_.parameters.supportThreshold = supportThreshold();
         proposal_.actions.push(IDAO.Action({to: _to, value: 0, data: _data}));
 

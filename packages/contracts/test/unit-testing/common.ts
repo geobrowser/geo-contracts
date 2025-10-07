@@ -86,8 +86,14 @@ export enum VotingMode {
   VoteReplacement,
 }
 
+export enum ThresholdMode {
+  Percentage,
+  Flat,
+}
+
 export type VotingSettings = {
   votingMode: number;
+  thresholdMode: number;
   supportThreshold: BigNumber;
   duration: number;
 };
@@ -96,4 +102,5 @@ export const defaultMainVotingSettings: VotingSettings = {
   duration: 60 * 60, // 1 second
   supportThreshold: pctToRatio(50), // 50% + 1
   votingMode: VotingMode.EarlyExecution,
+  thresholdMode: ThresholdMode.Percentage,
 };

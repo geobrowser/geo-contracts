@@ -35,9 +35,9 @@ import {
   UPDATE_MULTISIG_SETTINGS_PERMISSION_ID,
   UPGRADE_PLUGIN_PERMISSION_ID,
   VoteOption,
+  defaultMainVotingSettings,
   ZERO_BYTES32,
 } from './common';
-import {defaultMainVotingSettings} from './common';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
 import {BigNumber} from 'ethers';
