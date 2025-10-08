@@ -113,12 +113,22 @@ abstract contract MajorityVotingBase is
         VoteReplacement
     }
 
+    /// @notice The different threshold modes available.
+    /// @param Percentage The percentage-based threshold system (e.g., 60% = 6e5).
+    /// @param Flat The flat threshold system (e.g., 2 votes = 2).
+    enum ThresholdMode {
+        Percentage,
+        Flat
+    }
+
     /// @notice A container for the majority voting settings that will be applied as parameters on proposal creation.
     /// @param votingMode A parameter to select the vote mode. In standard mode (0), early execution and vote replacement are disabled. In early execution mode (1), a proposal can be executed early before the end date if the vote outcome cannot mathematically change by more voters voting. In vote replacement mode (2), voters can change their vote multiple times and only the latest vote option is tallied.
-    /// @param supportThreshold The support threshold value. Its value has to be in the interval [0, 10^6] defined by `RATIO_BASE = 10**6`.
+    /// @param thresholdMode A parameter to select the threshold mode. In percentage mode (0), the percentage-based threshold system (e.g., 60% = 6e5) is enabled. In flat mode (1), the flat threshold system (e.g., 2 votes = 2) is enabled.
+    /// @param supportThreshold The support threshold value. Its percentage value has to be in the interval [0, 10^6] defined by `RATIO_BASE = 10**6`.
     /// @param duration The duration of proposals in seconds.
     struct VotingSettings {
         VotingMode votingMode;
+        ThresholdMode thresholdMode;
         uint32 supportThreshold;
         uint64 duration;
     }
@@ -143,12 +153,14 @@ abstract contract MajorityVotingBase is
 
     /// @notice A container for the proposal parameters at the time of proposal creation.
     /// @param votingMode A parameter to select the vote mode.
-    /// @param supportThreshold The support threshold value. The value has to be in the interval [0, 10^6] defined by `RATIO_BASE = 10**6`.
+    /// @param thresholdMode A parameter to select the threshold mode.
+    /// @param supportThreshold The support threshold value. The percentage value has to be in the interval [0, 10^6] defined by `RATIO_BASE = 10**6`.
     /// @param startDate The start date of the proposal vote.
     /// @param endDate The end date of the proposal vote.
     /// @param snapshotBlock The number of the block prior to the proposal creation.
     struct ProposalParameters {
         VotingMode votingMode;
+        ThresholdMode thresholdMode;
         uint32 supportThreshold;
         uint64 startDate;
         uint64 endDate;
@@ -214,9 +226,15 @@ abstract contract MajorityVotingBase is
 
     /// @notice Emitted when the voting settings are updated.
     /// @param votingMode A parameter to select the vote mode.
+    /// @param thresholdMode A parameter to select the threshold mode.
     /// @param supportThreshold The support threshold value.
     /// @param duration The minimum duration of the proposal vote in seconds.
-    event VotingSettingsUpdated(VotingMode votingMode, uint32 supportThreshold, uint64 duration);
+    event VotingSettingsUpdated(
+        VotingMode votingMode,
+        ThresholdMode thresholdMode,
+        uint32 supportThreshold,
+        uint64 duration
+    );
 
     /// @notice Initializes the component to be used by inheriting contracts.
     /// @dev This method is required to support [ERC-1822](https://eips.ethereum.org/EIPS/eip-1822).
@@ -298,11 +316,13 @@ abstract contract MajorityVotingBase is
     function isSupportThresholdReached(uint256 _proposalId) public view virtual returns (bool) {
         Proposal storage proposal_ = proposals[_proposalId];
 
+        uint32 supportThresholdPercentage = getSupportThresholdPercentage(_proposalId);
+
         // The code below implements the formula of the support criterion explained in the top of this file.
-        // `(1 - supportThreshold) * N_yes > supportThreshold *  N_no`
+        // `(1 - supportThresholdPercentage) * N_yes > supportThresholdPercentage *  N_no`
         return
-            (RATIO_BASE - proposal_.parameters.supportThreshold) * proposal_.tally.yes >
-            proposal_.parameters.supportThreshold * proposal_.tally.no;
+            (RATIO_BASE - supportThresholdPercentage) * proposal_.tally.yes >
+            supportThresholdPercentage * proposal_.tally.no;
     }
 
     /// @inheritdoc IMajorityVoting
@@ -311,15 +331,16 @@ abstract contract MajorityVotingBase is
     ) public view virtual returns (bool) {
         Proposal storage proposal_ = proposals[_proposalId];
 
+        uint32 supportThresholdPercentage = getSupportThresholdPercentage(_proposalId);
         uint256 noVotesWorstCase = totalVotingPower(proposal_.parameters.snapshotBlock) -
             proposal_.tally.yes -
             proposal_.tally.abstain;
 
         // The code below implements the formula of the early execution support criterion explained in the top of this file.
-        // `(1 - supportThreshold) * N_yes > supportThreshold *  N_no,worst-case`
+        // `(1 - supportThresholdPercentage) * N_yes > supportThresholdPercentage *  N_no,worst-case`
         return
-            (RATIO_BASE - proposal_.parameters.supportThreshold) * proposal_.tally.yes >
-            proposal_.parameters.supportThreshold * noVotesWorstCase;
+            (RATIO_BASE - supportThresholdPercentage) * proposal_.tally.yes >
+            supportThresholdPercentage * noVotesWorstCase;
     }
 
     /// @inheritdoc IMajorityVoting
@@ -340,6 +361,42 @@ abstract contract MajorityVotingBase is
     /// @return The vote mode parameter.
     function votingMode() public view virtual returns (VotingMode) {
         return votingSettings.votingMode;
+    }
+
+    /// @notice Returns the threshold mode stored in the voting settings.
+    /// @return The threshold mode parameter.
+    function thresholdMode() public view virtual returns (ThresholdMode) {
+        return votingSettings.thresholdMode;
+    }
+
+    /// @notice Returns the support threshold percentage computed for a specific proposal ID.
+    /// @param _proposalId The ID of the proposal.
+    /// @return The support threshold percentage.
+    function getSupportThresholdPercentage(
+        uint256 _proposalId
+    ) public view virtual returns (uint32) {
+        Proposal storage proposal_ = proposals[_proposalId];
+
+        // If the threshold value is zero, return zero
+        if (proposal_.parameters.supportThreshold == 0) return 0;
+
+        // Require the support threshold value to be in the interval [0, 10^6-1], because `>` comparison is used in the support criterion and >100% could never be reached.
+        if (proposal_.parameters.thresholdMode == ThresholdMode.Percentage) {
+            return proposal_.parameters.supportThreshold - 1;
+        } else {
+            // Fetch total voters to convert flat threshold to a percentage
+            uint256 totalVoters = totalVotingPower(proposal_.parameters.snapshotBlock);
+            // If no voters exist, return zero
+            if (totalVoters == 0) return 0;
+            // If the flat threshold exceeds the total number of voters, everyone must vote
+            if (uint256(proposal_.parameters.supportThreshold) >= totalVoters)
+                return uint32(RATIO_BASE) - 1;
+            // Else dynamically determine the threshold percentage
+            return
+                uint32(
+                    (uint256(proposal_.parameters.supportThreshold) * RATIO_BASE) / totalVoters
+                ) - 1;
+        }
     }
 
     /// @notice Returns the total voting power checkpointed for a specific block number.
@@ -486,12 +543,13 @@ abstract contract MajorityVotingBase is
     /// @notice Internal function to update the plugin-wide proposal vote settings.
     /// @param _votingSettings The voting settings to be validated and updated.
     function _updateVotingSettings(VotingSettings calldata _votingSettings) internal virtual {
-        // Require the support threshold value to be in the interval [0, 10^6-1], because `>` comparision is used in the support criterion and >100% could never be reached.
-        if (_votingSettings.supportThreshold > RATIO_BASE - 1) {
-            revert RatioOutOfBounds({
-                limit: RATIO_BASE - 1,
-                actual: _votingSettings.supportThreshold
-            });
+        if (_votingSettings.thresholdMode == ThresholdMode.Percentage) {
+            if (_votingSettings.supportThreshold > RATIO_BASE) {
+                revert RatioOutOfBounds({
+                    limit: RATIO_BASE,
+                    actual: _votingSettings.supportThreshold
+                });
+            }
         }
 
         if (_votingSettings.duration < 60 minutes) {
@@ -504,6 +562,7 @@ abstract contract MajorityVotingBase is
 
         emit VotingSettingsUpdated({
             votingMode: _votingSettings.votingMode,
+            thresholdMode: _votingSettings.thresholdMode,
             supportThreshold: _votingSettings.supportThreshold,
             duration: _votingSettings.duration
         });

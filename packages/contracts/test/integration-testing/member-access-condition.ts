@@ -14,6 +14,7 @@ import {
 } from '../../utils/helpers';
 import {installPlugin} from '../helpers/setup';
 import {deployTestDao} from '../helpers/test-dao';
+import {VotingMode, ThresholdMode} from '../unit-testing/common';
 import {
   DAO,
   PluginRepo__factory,
@@ -30,7 +31,8 @@ const release = 1;
 const pluginSettings: MajorityVotingBase.VotingSettingsStruct = {
   duration: 60 * 60 * 24,
   supportThreshold: 1,
-  votingMode: 0,
+  votingMode: VotingMode.Standard,
+  thresholdMode: ThresholdMode.Percentage,
 };
 const memberAccessProposalDuration = 60 * 60 * 24;
 

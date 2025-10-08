@@ -292,8 +292,8 @@ function implementation() returns (address);
 #### Events
 
 ```solidity
-event EditsPublished(address dao, string contentUri);
-event SuccessorSpaceCreated(address dao, address predecessorSpaceDao);
+event EditsPublished(address dao, string editsContentUri, bytes editsMetadata);
+event SuccessorSpaceCreated(address dao, address predecessorSpace);
 event SubspaceAccepted(address dao, address subspaceDao);
 event SubspaceRemoved(address dao, address subspaceDao);
 ```
@@ -377,7 +377,7 @@ event Approved(uint256 indexed proposalId, address indexed editor);
 
 event Rejected(uint256 indexed proposalId, address indexed editor);
 
-event MultisigSettingsUpdated(uint64 proposalDuration, address mainVotingPlugin);
+event MultisigSettingsUpdated(uint64 proposalDuration);
 ```
 
 Inherited:
@@ -514,7 +514,7 @@ event VoteCast(uint256 indexed proposalId, address indexed voter, VoteOption vot
 
 event ProposalExecuted(uint256 indexed proposalId);
 
-event VotingSettingsUpdated(VotingMode votingMode, uint32 supportThreshold, uint32 minParticipation, uint64 duration);
+event VotingSettingsUpdated(VotingMode votingMode, ThresholdMode thresholdMode, uint32 supportThreshold, uint64 duration);
 ```
 
 #### Permissions

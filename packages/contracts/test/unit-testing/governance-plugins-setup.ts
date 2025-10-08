@@ -18,6 +18,7 @@ import {
   UPDATE_MULTISIG_SETTINGS_PERMISSION_ID,
   UPDATE_VOTING_SETTINGS_PERMISSION_ID,
   VotingMode,
+  ThresholdMode,
 } from './common';
 import {SignerWithAddress} from '@nomiclabs/hardhat-ethers/signers';
 import {expect} from 'chai';
@@ -53,6 +54,7 @@ describe('Governance Plugins Setup', function () {
       const initData = await governancePluginsSetup.encodeInstallationParams(
         {
           votingMode: VotingMode.EarlyExecution,
+          thresholdMode: ThresholdMode.Percentage,
           supportThreshold: pctToRatio(25),
           duration: 60 * 60 * 24 * 5,
         },
@@ -160,10 +162,11 @@ describe('Governance Plugins Setup', function () {
       const initialEditors = [alice.address, bob.address];
       const initialMembers = [carol.address, dave.address];
 
-      // Params: (MajorityVotingBase.VotingSettings, address, address)
+      // Params: (MajorityVotingBase.VotingSettings, address[], address[], uint64, address)
       const initData = await governancePluginsSetup.encodeInstallationParams(
         {
           votingMode: VotingMode.EarlyExecution,
+          thresholdMode: ThresholdMode.Percentage,
           supportThreshold: pctToRatio(25),
           duration: 60 * 60 * 24 * 5,
         },

@@ -32,6 +32,8 @@ import {
   ADDRESS_ZERO,
   UPGRADE_PLUGIN_PERMISSION_ID,
   ZERO_BYTES32,
+  VotingMode,
+  ThresholdMode,
 } from '../unit-testing/common';
 import {
   DAO,
@@ -50,7 +52,8 @@ const release = 1;
 const pluginSettings: MajorityVotingBase.VotingSettingsStruct = {
   duration: 60 * 60 * 24,
   supportThreshold: 1,
-  votingMode: 0,
+  votingMode: VotingMode.Standard,
+  thresholdMode: ThresholdMode.Percentage,
 };
 const minMemberAccessProposalDuration = 60 * 60 * 24;
 const daoInterface = DAO__factory.createInterface();
