@@ -100,7 +100,7 @@ export type VotingSettings = {
 
 export const defaultMainVotingSettings: VotingSettings = {
   duration: 60 * 60, // 1 second
-  supportThreshold: pctToRatio(50), // 50% + 1
+  supportThreshold: pctToRatio(50).add(1), // 50% + 1
   votingMode: VotingMode.EarlyExecution,
   thresholdMode: ThresholdMode.Percentage,
 };

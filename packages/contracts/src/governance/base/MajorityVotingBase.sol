@@ -377,13 +377,17 @@ abstract contract MajorityVotingBase is
     ) public view virtual returns (uint32) {
         Proposal storage proposal_ = proposals[_proposalId];
 
+        // If the threshold value is zero, return zero
+        if (proposal_.parameters.supportThreshold == 0) return 0;
+
+        // Require the support threshold value to be in the interval [0, 10^6-1], because `>` comparison is used in the support criterion and >100% could never be reached.
         if (proposal_.parameters.thresholdMode == ThresholdMode.Percentage) {
-            return proposal_.parameters.supportThreshold;
+            return proposal_.parameters.supportThreshold - 1;
         } else {
             // Fetch total voters to convert flat threshold to a percentage
             uint256 totalVoters = totalVotingPower(proposal_.parameters.snapshotBlock);
-            // If no voters exist or the flat threshold is zero, return zero
-            if (totalVoters == 0 || proposal_.parameters.supportThreshold == 0) return 0;
+            // If no voters exist, return zero
+            if (totalVoters == 0) return 0;
             // If the flat threshold exceeds the total number of voters, everyone must vote
             if (uint256(proposal_.parameters.supportThreshold) >= totalVoters)
                 return uint32(RATIO_BASE) - 1;
@@ -540,10 +544,9 @@ abstract contract MajorityVotingBase is
     /// @param _votingSettings The voting settings to be validated and updated.
     function _updateVotingSettings(VotingSettings calldata _votingSettings) internal virtual {
         if (_votingSettings.thresholdMode == ThresholdMode.Percentage) {
-            // Require the support threshold value to be in the interval [0, 10^6-1], because `>` comparison is used in the support criterion and >100% could never be reached.
-            if (_votingSettings.supportThreshold > RATIO_BASE - 1) {
+            if (_votingSettings.supportThreshold > RATIO_BASE) {
                 revert RatioOutOfBounds({
-                    limit: RATIO_BASE - 1,
+                    limit: RATIO_BASE,
                     actual: _votingSettings.supportThreshold
                 });
             }

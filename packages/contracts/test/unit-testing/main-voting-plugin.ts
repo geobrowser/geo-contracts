@@ -2783,11 +2783,11 @@ describe('Tests replicated from the original AddressList plugin', async () => {
   });
 
   describe('Different configurations:', async () => {
-    describe('A simple majority vote with >=50% support and early execution', async () => {
+    describe('A simple majority vote with >50% support and early execution', async () => {
       context('Percentage Threshold Mode', async () => {
         beforeEach(async () => {
           votingSettings.thresholdMode = ThresholdMode.Percentage;
-          votingSettings.supportThreshold = pctToRatio(50);
+          votingSettings.supportThreshold = pctToRatio(50).add(1);
 
           await mainVotingPlugin.initialize(
             dao.address,
@@ -2926,7 +2926,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
       context('Flat Threshold Mode', async () => {
         beforeEach(async () => {
           votingSettings.thresholdMode = ThresholdMode.Flat;
-          votingSettings.supportThreshold = BigNumber.from(5);
+          votingSettings.supportThreshold = BigNumber.from(6);
 
           await mainVotingPlugin.initialize(
             dao.address,
@@ -3027,7 +3027,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
           await advanceIntoVoteTime(startDate, endDate);
 
           await voteWithSigners(mainVotingPlugin, id, signers, {
-            yes: [0, 1, 2, 3], // 4 votes
+            yes: [0, 1, 2, 3, 4], // 5 votes
             no: [], // 0 votes
             abstain: [], // 0 votes
           });
@@ -3039,7 +3039,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
           expect(await mainVotingPlugin.canExecute(id)).to.be.false;
 
           await mainVotingPlugin
-            .connect(signers[4])
+            .connect(signers[5])
             .vote(id, VoteOption.Yes, false);
 
           expect(await mainVotingPlugin.isMinParticipationReached(id)).to.be
@@ -3050,7 +3050,7 @@ describe('Tests replicated from the original AddressList plugin', async () => {
 
           await voteWithSigners(mainVotingPlugin, id, signers, {
             yes: [],
-            no: [5, 6, 7, 8, 9], // 5 votes
+            no: [6, 7, 8, 9], // 4 votes
             abstain: [], // 0 votes
           });
 
@@ -3215,11 +3215,11 @@ describe('Tests replicated from the original AddressList plugin', async () => {
       });
     });
 
-    describe('An edge case with `supportThreshold = 99.9999%` in early execution mode', async () => {
+    describe('An edge case with `supportThreshold = 100%` in early execution mode', async () => {
       context('Percentage Threshold Mode', async () => {
         beforeEach(async () => {
           votingSettings.thresholdMode = ThresholdMode.Percentage;
-          votingSettings.supportThreshold = pctToRatio(100).sub(1);
+          votingSettings.supportThreshold = pctToRatio(100);
 
           await mainVotingPlugin.initialize(
             dao.address,
